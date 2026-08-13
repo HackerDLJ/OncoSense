@@ -1,9 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     APP_NAME: str = "OncoSense"
-
     DEBUG: bool = True
+
+    DATABASE_URL: str | None = None
 
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
@@ -14,16 +16,17 @@ class Settings(BaseSettings):
     MONGODB_URI: str = "mongodb://localhost:27017"
 
     OPENAI_API_KEY: str = ""
-
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     JWT_SECRET_KEY: str = "super_secret_key_change_me"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    PASSWORD_RESET_TTL_MINUTES: int = 30
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore"
-    )
+    GOOGLE_CLIENT_ID: str = ""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
 
 settings = Settings()
