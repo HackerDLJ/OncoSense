@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OncoSense | Clinical Support Prototype</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#172033;background:#f5f7fb;line-height:1.5}*{box-sizing:border-box}body{margin:0}.shell{max-width:1180px;margin:auto;padding:28px}.hero{background:linear-gradient(135deg,#182848,#4b6cb7);color:white;border-radius:24px;padding:32px;box-shadow:0 18px 50px #18284822}.hero h1{margin:0;font-size:38px}.hero p{max-width:760px;color:#e9efff}.badge{display:inline-block;padding:5px 10px;border-radius:999px;background:#ffffff20;font-size:12px;margin-bottom:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:20px}.card{background:white;border:1px solid #e4e8f0;border-radius:18px;padding:22px;box-shadow:0 8px 28px #1720330b}.card h2{margin-top:0}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{padding:14px;background:#f4f6fa;border-radius:14px}.stat b{display:block;font-size:25px}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{font-size:13px;font-weight:650;display:block;margin:10px 0 5px}input,select,textarea{width:100%;border:1px solid #d7dce6;border-radius:10px;padding:11px;font:inherit}textarea{min-height:130px;resize:vertical}button{border:0;border-radius:11px;padding:11px 16px;font-weight:750;cursor:pointer;background:#3159c9;color:white;margin-top:12px}button.secondary{background:#e9edf6;color:#172033}.result{margin-top:15px;padding:15px;border-radius:12px;background:#f5f7fb;white-space:pre-wrap}.warning{background:#fff7df;border:1px solid #f2d58a;padding:14px;border-radius:12px;margin-top:18px;font-size:13px}.hidden{display:none}.muted{color:#667085}.ok{color:#157347}.danger{color:#b42318}@media(max-width:650px){.shell{padding:14px}.hero h1{font-size:30px}.row{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr 1fr}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <section class="hero">
+    <span class="badge">OncoSense v1.1 • Prototype</span>
+    <h1>OncoSense 🧬</h1>
+    <p>A small, runnable clinical-support prototype for patient records, transparent risk signals and report keyword extraction. It is deliberately not a diagnostic system.</p>
+  </section>
+
+  <div id="auth" class="grid">
+    <section class="card">
+      <h2>Create account</h2>
+      <div class="row"><div><label>Name</label><input id="regName" placeholder="Demo User"></div><div><label>Email</label><input id="regEmail" type="email" placeholder="demo@example.com"></div></div>
+      <label>Password</label><input id="regPassword" type="password" placeholder="At least 8 characters">
+      <button onclick="register()">Create account</button>
+    </section>
+    <section class="card">
+      <h2>Sign in</h2>
+      <label>Email</label><input id="loginEmail" type="email" placeholder="demo@example.com">
+      <label>Password</label><input id="loginPassword" type="password">
+      <button onclick="login()">Sign in</button>
+      <div id="authResult" class="result muted">Use the local API at the same host.</div>
+    </section>
+  </div>
+
+  <main id="dashboard" class="hidden">
+    <section class="card" style="margin-top:20px">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><h2>Dashboard</h2><button class="secondary" onclick="logout()">Sign out</button></div>
+      <div class="stats"><div class="stat"><span>Patients</span><b id="patients">0</b></div><div class="stat"><span>Assessments</span><b id="assessments">0</b></div><div class="stat"><span>Reports</span><b id="reports">0</b></div></div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Patient profile</h2>
+        <div class="row"><div><label>Age</label><input id="age" type="number" value="45"></div><div><label>Gender</label><select id="gender"><option>Female</option><option>Male</option><option>Other</option></select></div></div>
+        <div class="row"><div><label>Weight (kg)</label><input id="weight" type="number" value="70"></div><div><label>Height (cm)</label><input id="height" type="number" value="170"></div></div>
+        <label>Blood group</label><input id="blood" value="O+">
+        <button onclick="savePatient()">Save patient</button>
+        <div id="patientResult" class="result muted"></div>
+      </section>
+
+      <section class="card">
+        <h2>Risk support</h2>
+        <p class="muted">Transparent rule-based demo signal. No cancer type is diagnosed.</p>
+        <div class="row"><div><label>Age</label><input id="rAge" type="number" value="45"></div><div><label>BMI</label><input id="bmi" type="number" step="0.1" value="24.2"></div></div>
+        <label><input id="smoking" type="checkbox" style="width:auto"> Smoking history</label>
+        <label><input id="family" type="checkbox" style="width:auto"> Family history</label>
+        <label><input id="symptoms" type="checkbox" style="width:auto"> Persistent symptoms</label>
+        <button onclick="assess()">Run assessment</button>
+        <div id="riskResult" class="result muted"></div>
+      </section>
+
+      <section class="card" style="grid-column:1/-1">
+        <h2>Medical report parser</h2>
+        <p class="muted">Extracts broad keywords only. It does not interpret findings or produce a diagnosis.</p>
+        <textarea id="reportText" placeholder="Paste a de-identified report here..."></textarea>
+        <button onclick="summarize()">Analyze report text</button>
+        <div id="reportResult" class="result muted"></div>
+      </section>
+    </div>
+
+    <div class="warning"><b>Medical safety:</b> OncoSense is a software prototype for research/demo purposes. Its outputs are not medical advice, screening results, or a cancer diagnosis. Do not use it to make clinical decisions. Use validated clinical tools and qualified healthcare professionals.</div>
+  </main>
+</div>
+<script>
+const API=''; let token=localStorage.getItem('oncosense_token');
+async function api(path,options={}){options.headers={...(options.headers||{}),'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})};const r=await fetch(API+path,options);const d=await r.json().catch(()=>({detail:r.statusText}));if(!r.ok)throw new Error(d.detail||'Request failed');return d}
+function showDashboard(){if(token){document.getElementById('auth').classList.add('hidden');document.getElementById('dashboard').classList.remove('hidden');loadDashboard()}}
+async function register(){try{const d=await api('/auth/register',{method:'POST',body:JSON.stringify({name:regName.value,email:regEmail.value,password:regPassword.value})});token=d.access_token;localStorage.setItem('oncosense_token',token);showDashboard()}catch(e){authResult.textContent=e.message;authResult.className='result danger'}}
+async function login(){try{const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:loginEmail.value,password:loginPassword.value})});token=d.access_token;localStorage.setItem('oncosense_token',token);showDashboard()}catch(e){authResult.textContent=e.message;authResult.className='result danger'}}
+async function loadDashboard(){try{const d=await api('/api/dashboard');patients.textContent=d.patients;assessments.textContent=d.assessments;reports.textContent=d.reports}catch(e){logout()}}
+async function savePatient(){try{const d=await api('/api/patients',{method:'POST',body:JSON.stringify({age:+age.value,gender:gender.value,weight:+weight.value,height:+height.value,blood_group:blood.value})});patientResult.textContent=`Saved patient #${d.id}`;patientResult.className='result ok';loadDashboard()}catch(e){patientResult.textContent=e.message}}
+async function assess(){try{const d=await api('/api/risk-assessment',{method:'POST',body:JSON.stringify({age:+rAge.value,bmi:+bmi.value,smoking:smoking.checked,family_history:family.checked,persistent_symptoms:symptoms.checked})});riskResult.textContent=`Signal: ${d.risk_level}\nScore: ${d.risk_score}\nConfidence (prototype): ${d.confidence}\nReasons: ${d.reasons.join(', ')||'none'}\n\n${d.disclaimer}`;riskResult.className='result';loadDashboard()}catch(e){riskResult.textContent=e.message}}
+async function summarize(){try{const d=await api('/api/report-summary',{method:'POST',body:JSON.stringify({text:reportText.value})});reportResult.textContent=d.summary+'\n\n'+d.disclaimer;reportResult.className='result';loadDashboard()}catch(e){reportResult.textContent=e.message}}
+function logout(){token=null;localStorage.removeItem('oncosense_token');location.reload()}
+showDashboard();
+</script>
+</body>
+</html>
