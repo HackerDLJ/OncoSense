@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.clinical import router as clinical_router
+from app.api.longitudinal import router as longitudinal_router
 from app.database.base import Base
 from app.database.postgres import engine
 from app.models import MedicalReport, Patient, Prediction, User
@@ -16,8 +17,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="OncoSense API",
-    version="1.1.0",
-    description="OncoSense clinical decision-support prototype. Risk outputs are research/demo signals and are not diagnoses.",
+    version="2.0.0",
+    description="Personalized longitudinal health-anomaly research platform. Outputs are research/demo signals and are not diagnoses.",
 )
 
 app.add_middleware(
@@ -30,11 +31,16 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(clinical_router, prefix="/api", tags=["Clinical"])
+app.include_router(longitudinal_router, prefix="/api")
 
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "Welcome to OncoSense", "status": "Running", "mode": "clinical-support prototype"}
+    return {
+        "message": "Welcome to OncoSense",
+        "status": "Running",
+        "mode": "personalized longitudinal research prototype",
+    }
 
 
 @app.get("/health")
