@@ -58,11 +58,9 @@ The Watch is deliberately glanceable rather than a miniature iPhone. It focuses 
 - Ten supported health signals when available.
 - First-run Watch setup.
 
-Apple's watchOS guidance emphasizes focused, glanceable experiences and shallow navigation, which is why the Watch UI is intentionally compact. citeturn3search0turn3search5
-
 ## Real data, not demo numbers
 
-The Apple layer reads from HealthKit only after the user grants permission. HealthKit is Apple's central repository for health and fitness data from iPhone, Apple Watch, and compatible sources. citeturn0search1turn0search7
+The Apple layer reads from HealthKit only after the user grants permission. HealthKit is Apple's central repository for health and fitness data from iPhone, Apple Watch, and compatible sources.
 
 The current reader covers these HealthKit types:
 
@@ -77,7 +75,7 @@ The current reader covers these HealthKit types:
 - Active energy burned
 - Body mass
 
-HealthKit data availability depends on the device, OS version, source, region, and the permissions granted by the user. HealthKit also intentionally does not tell an app whether a particular read permission was denied versus no readable data being available, so OncoSense represents unavailable measurements as **No data** rather than pretending to know why the value is missing. citeturn0search8
+HealthKit data availability depends on the device, OS version, source, region, and the permissions granted by the user. HealthKit also intentionally does not tell an app whether a particular read permission was denied versus no readable data being available, so OncoSense represents unavailable measurements as **No data** rather than pretending to know why the value is missing.
 
 ## Watch ↔ iPhone sync
 
@@ -102,9 +100,9 @@ OncoSense uses `updateApplicationContext` for the latest state and `transferUser
 
 ## Why the app is not a "cancer = yes/no" button
 
-Cancer screening and diagnosis are not interchangeable. The National Cancer Institute notes that screening tests are designed to find certain cancers early and that abnormal screening results generally require additional testing; screening itself is not diagnosis. citeturn0search2turn0search6
+Cancer screening and diagnosis are not interchangeable. Established cancer screening tests are designed to find certain cancers early, and an abnormal screening result generally requires additional testing. Screening is not diagnosis.
 
-Wearable sensors are an active research area in cancer research, including longitudinal measures of sleep, activity, heart rate, temperature, and other physiological signals, but research opportunity is not the same thing as clinical validation. citeturn0search17
+Wearable sensors are an active research area in cancer research, including longitudinal measures of sleep, activity, heart rate, temperature, and other physiological signals, but research opportunity is not the same thing as clinical validation.
 
 Therefore, the current product goal is narrower and technically honest:
 
