@@ -32,84 +32,161 @@ struct OnboardingView: View {
         ZStack {
             Color(uiColor: .systemBackground).ignoresSafeArea()
             LinearGradient(colors: [.blue.opacity(0.20), .purple.opacity(0.10), .clear], startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
-            VStack(spacing: 18) {
-                HStack {
-                    Label("ONCOSENSE", systemImage: "waveform.path.ecg").font(.headline.bold())
-                    Spacer()
-                    Text("\(page + 1)/4").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                }
 
-                Spacer()
-                Image(systemName: pages[page].0)
-                    .font(.system(size: 64, weight: .medium))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.tint)
-                Text(pages[page].1)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                Text(pages[page].2)
-                    .font(.body)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                Spacer()
+            VStack(spacing: 0) {
+                HStack {
+                    Label("ONCOSENSE", systemImage: "waveform.path.ecg")
+                        .font(.headline.bold())
+                    Spacer()
+                    Text("\(page + 1)/\(pages.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+
+                TabView(selection: $page) {
+                    ForEach(pages.indices, id: \.self) { index in
+                        VStack(spacing: 18) {
+                            Spacer(minLength: 16)
+                            Image(systemName: pages[index].0)
+                                .font(.system(size: 64, weight: .medium))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.tint)
+                                .accessibilityHidden(true)
+
+                            Text(pages[index].1)
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text(pages[index].2)
+                                .font(.body)
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Spacer(minLength: 16)
+                        }
+                        .padding(.horizontal, 24)
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.easeInOut(duration: 0.25), value: page)
 
                 HStack(spacing: 6) {
-                    ForEach(0..<4, id: \.self) { index in
-                        Capsule().fill(index == page ? Color.accentColor : Color.secondary.opacity(0.2)).frame(width: index == page ? 24 : 7, height: 7)
+                    ForEach(pages.indices, id: \.self) { index in
+                        Capsule()
+                            .fill(index == page ? Color.accentColor : Color.secondary.opacity(0.2))
+                            .frame(width: index == page ? 24 : 7, height: 7)
+                            .animation(.easeInOut(duration: 0.2), value: page)
                     }
                 }
+                .padding(.bottom, 18)
 
-                Button {
-                    if page < 3 {
-                        withAnimation { page += 1 }
-                    } else {
-                        connecting = true
-                        Task {
-                            _ = await store.startSetup()
-                            connecting = false
+                VStack(spacing: 10) {
+                    Button {
+                        if page < pages.count - 1 {
+                            withAnimation(.easeInOut(duration: 0.25)) { page += 1 }
+                        } else {
+                            connectHealth()
                         }
+                    } label: {
+                        HStack {
+                            if connecting { ProgressView().tint(.white) }
+                            Text(connecting ? "Connecting…" : page == pages.count - 1 ? "Connect Apple Health" : "Continue")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
                     }
-                } label: {
-                    HStack {
-                        if connecting { ProgressView().tint(.white) }
-                        Text(connecting ? "Connecting…" : page == 3 ? "Connect Apple Health" : "Continue")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(connecting)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(connecting)
 
-                if page > 0 && page < 3 {
-                    Button("Back") { withAnimation { page -= 1 } }.font(.footnote).foregroundStyle(.secondary)
+                    if page > 0 {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) { page -= 1 }
+                        } label: {
+                            Text("Back")
+                                .font(.footnote.weight(.medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .disabled(connecting)
+                    } else {
+                        Text("Swipe to explore")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
+            }
+        }
+        .interactiveDismissDisabled(connecting)
+    }
+
+    private func connectHealth() {
+        connecting = true
+        Task {
+            let success = await store.startSetup()
+            await MainActor.run {
+                connecting = false
+                if !success {
+                    // Keep the walkthrough visible so the user can retry after fixing permissions.
                 }
             }
-            .padding(24)
         }
     }
 }
 
+private enum AppTab: Hashable {
+    case overview
+    case signals
+    case trends
+    case care
+}
+
 struct MainShell: View {
     @EnvironmentObject private var store: OncoSenseStore
+    @State private var selectedTab: AppTab = .overview
     @State private var showWatch = false
+    @State private var showLearn = false
 
     var body: some View {
-        TabView {
-            OverviewView(showWatch: $showWatch).tabItem { Label("Overview", systemImage: "house.fill") }
-            SignalsView().tabItem { Label("Signals", systemImage: "waveform.path.ecg") }
-            TrendsView().tabItem { Label("Trends", systemImage: "chart.xyaxis.line") }
-            CareView().tabItem { Label("Care", systemImage: "person.text.rectangle") }
+        TabView(selection: $selectedTab) {
+            OverviewView(
+                showWatch: $showWatch,
+                onSelectCare: { selectedTab = .care },
+                onShowLearn: { showLearn = true }
+            )
+            .tabItem { Label("Overview", systemImage: "house.fill") }
+            .tag(AppTab.overview)
+
+            SignalsView()
+                .tabItem { Label("Signals", systemImage: "waveform.path.ecg") }
+                .tag(AppTab.signals)
+
+            TrendsView()
+                .tabItem { Label("Trends", systemImage: "chart.xyaxis.line") }
+                .tag(AppTab.trends)
+
+            CareView()
+                .tabItem { Label("Care", systemImage: "person.text.rectangle") }
+                .tag(AppTab.care)
         }
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .sheet(isPresented: $showWatch) { WatchConnectionView().environmentObject(store) }
+        .sheet(isPresented: $showLearn) { LearnView() }
     }
 }
 
 private struct OverviewView: View {
     @EnvironmentObject private var store: OncoSenseStore
     @Binding var showWatch: Bool
+    let onSelectCare: () -> Void
+    let onShowLearn: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -121,6 +198,7 @@ private struct OverviewView: View {
                     nextStep
                 }
                 .padding()
+                .padding(.bottom, 12)
             }
             .navigationTitle("OncoSense")
             .toolbar {
@@ -195,8 +273,8 @@ private struct OverviewView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("WHAT TO DO NEXT").font(.caption.bold()).foregroundStyle(.secondary)
             ActionRow(icon: "applewatch", title: "Check Watch connection", detail: store.watchStatusText) { showWatch = true }
-            ActionRow(icon: "person.text.rectangle", title: "Add today's context", detail: "Fatigue, appetite, pain, fever and notes") { }
-            ActionRow(icon: "book.closed", title: "Learn how to read your data", detail: "Understand baseline, coverage and pattern changes") { }
+            ActionRow(icon: "person.text.rectangle", title: "Add today's context", detail: "Fatigue, appetite, pain, fever and notes") { onSelectCare() }
+            ActionRow(icon: "book.closed", title: "Learn how to read your data", detail: "Understand baseline, coverage and pattern changes") { onShowLearn() }
         }
         .cardStyle()
     }
