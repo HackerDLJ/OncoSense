@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    CURRENT_PROJECT_VERSION: 203
+    CURRENT_PROJECT_VERSION: 204
     MARKETING_VERSION: 2.0.0
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
@@ -23,14 +23,13 @@ targets:
       - path: Shared/OncoSenseCore
     dependencies:
       - target: OncoSenseWatch
+    info:
+      path: ios/OncoSense/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hackerdlj.oncosense
-        INFOPLIST_KEY_CFBundleDisplayName: OncoSense
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UIRequiresFullScreen: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
         TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: OncoSense
         INFOPLIST_KEY_NSHealthShareUsageDescription: "OncoSense uses your authorized health data to build a personal physiological baseline and identify persistent changes."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "OncoSense does not write health data."
         SUPPORTS_MACCATALYST: false
