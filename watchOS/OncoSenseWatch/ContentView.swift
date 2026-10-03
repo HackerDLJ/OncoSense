@@ -5,9 +5,12 @@ struct ContentView: View {
     @EnvironmentObject private var sync: OncoSenseConnectivity
     @State private var snapshot: HealthSnapshot?
     @State private var result: ScreeningResult?
+    @State private var history: [HealthSnapshot] = []
     @State private var healthReady = false
     @State private var isRefreshing = false
     @State private var errorMessage: String?
+
+    private let historyKey = "oncosense.watch.snapshots.v1"
 
     var body: some View {
         ScrollView {
@@ -32,9 +35,9 @@ struct ContentView: View {
                 } else {
                     Image(systemName: "heart.text.square")
                         .font(.largeTitle)
-                    Text("No real measurements yet")
+                    Text("Building your baseline")
                         .font(.headline)
-                    Text("Connect Apple Health, then refresh to collect a real snapshot.")
+                    Text("OncoSense needs multiple real HealthKit measurements before showing a pattern change.")
                         .font(.caption2)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
@@ -84,10 +87,12 @@ struct ContentView: View {
             .padding(.horizontal, 8)
         }
         .task {
+            loadHistory()
             sync.activate()
             sync.onSnapshot = { incoming in
                 Task { @MainActor in
                     snapshot = incoming
+                    append(incoming)
                 }
             }
         }
@@ -114,12 +119,31 @@ struct ContentView: View {
             do {
                 let fresh = try await health.fetchLatestSnapshot()
                 snapshot = fresh
-                result = ScreeningEngine.analyze([fresh, fresh])
+                append(fresh)
                 sync.send(snapshot: fresh)
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    private func append(_ fresh: HealthSnapshot) {
+        guard !history.contains(where: { $0.id == fresh.id }) else { return }
+        history.append(fresh)
+        history.sort { $0.timestamp > $1.timestamp }
+        history = Array(history.prefix(60))
+        result = ScreeningEngine.analyze(history)
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: historyKey)
+        }
+    }
+
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: historyKey),
+              let values = try? JSONDecoder().decode([HealthSnapshot].self, from: data) else { return }
+        history = values.sorted { $0.timestamp > $1.timestamp }
+        snapshot = history.first
+        result = ScreeningEngine.analyze(history)
     }
 }
 
