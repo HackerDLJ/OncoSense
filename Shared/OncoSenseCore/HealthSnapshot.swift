@@ -3,6 +3,7 @@ import Foundation
 struct HealthSnapshot: Codable, Identifiable, Equatable {
     let id: UUID
     let timestamp: Date
+    let source: String
     let restingHeartRate: Double?
     let hrv: Double?
     let respiratoryRate: Double?
@@ -10,9 +11,10 @@ struct HealthSnapshot: Codable, Identifiable, Equatable {
     let sleepHours: Double?
     let activityMinutes: Double?
 
-    init(id: UUID = UUID(), timestamp: Date = .now, restingHeartRate: Double? = nil, hrv: Double? = nil, respiratoryRate: Double? = nil, temperature: Double? = nil, sleepHours: Double? = nil, activityMinutes: Double? = nil) {
+    init(id: UUID = UUID(), timestamp: Date = .now, source: String = HealthSnapshotSource.healthKit.rawValue, restingHeartRate: Double? = nil, hrv: Double? = nil, respiratoryRate: Double? = nil, temperature: Double? = nil, sleepHours: Double? = nil, activityMinutes: Double? = nil) {
         self.id = id
         self.timestamp = timestamp
+        self.source = source
         self.restingHeartRate = restingHeartRate
         self.hrv = hrv
         self.respiratoryRate = respiratoryRate
@@ -20,6 +22,10 @@ struct HealthSnapshot: Codable, Identifiable, Equatable {
         self.sleepHours = sleepHours
         self.activityMinutes = activityMinutes
     }
+}
+
+enum HealthSnapshotSource: String, Codable {
+    case healthKit = "HealthKit"
 }
 
 enum ScreeningState: String, Codable {
@@ -38,14 +44,4 @@ struct ScreeningResult: Codable, Equatable {
     let summary: String
     let contributors: [String]
     let generatedAt: Date
-
-    static let demo = ScreeningResult(
-        state: .low,
-        signal: 12,
-        persistenceDays: 0,
-        dataQuality: 92,
-        summary: "Your recent physiological pattern is stable.",
-        contributors: ["Heart pattern · Stable", "Breathing · Stable", "Sleep · Stable", "Activity · Stable"],
-        generatedAt: .now
-    )
 }
