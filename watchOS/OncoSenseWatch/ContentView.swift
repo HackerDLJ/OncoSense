@@ -16,11 +16,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if showSetup {
-                setupView
-            } else {
-                dashboard
-            }
+            if showSetup { setupView } else { dashboard }
         }
         .task {
             loadHistory()
@@ -183,12 +179,14 @@ struct ContentView: View {
 
     private func connectHealth() {
         isRefreshing = true
+        errorMessage = nil
         Task {
             do {
                 try await health.requestAuthorization()
                 healthReady = true
                 UserDefaults.standard.set(true, forKey: "oncosense.watch.setup.v1")
                 showSetup = false
+                isRefreshing = false
                 refresh()
             } catch {
                 errorMessage = error.localizedDescription
