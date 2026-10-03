@@ -2,20 +2,21 @@
 
 **OncoSense** is a personalized longitudinal health-monitoring platform built around Apple Watch + iPhone + HealthKit + WatchConnectivity. It is designed to make real physiological change understandable instead of reducing health data to a single unexplained number.
 
-> ⚠️ **Medical safety:** OncoSense is a tracking, visualization, longitudinal-documentation, and communication-support system. It is **not** a cancer diagnosis, cancer-risk prediction, treatment recommendation, or replacement for established screening, diagnostic testing, or clinical care.
+> ⚠️ **Medical safety:** OncoSense is a tracking, visualization, longitudinal-documentation, screening-support, and communication-support system. It is **not a cancer diagnosis, cancer-risk prediction, treatment recommendation, or replacement for established screening, diagnostic testing, or clinical care.**
 
 ## Product scope
 
-OncoSense is intentionally positioned around four things:
+OncoSense is intentionally positioned around five things:
 
 1. **Tracking** real health measurements that the user has authorized through Apple Health.
 2. **Visualization** of those measurements in a clear, longitudinal view.
 3. **Longitudinal documentation** of personal baselines, persistent changes, symptoms, and notes.
-4. **Communication support** that helps a person prepare useful information for follow-up conversations with a qualified healthcare professional.
+4. **Screening support** that helps a person organize screening status and follow-up conversations without determining screening eligibility or diagnosing disease.
+5. **Communication support** that helps a person prepare useful information for follow-up conversations with a qualified healthcare professional.
 
 The product does **not** claim to:
 
-- detect cancer;
+- detect cancer from Apple Watch measurements;
 - diagnose cancer or recurrence;
 - predict a person's cancer risk;
 - provide a probability that someone has cancer;
@@ -24,7 +25,7 @@ The product does **not** claim to:
 
 The core product statement is:
 
-> **OncoSense helps people understand their own longitudinal health patterns, notice persistent changes from their personal baseline, document context, and prepare better information for follow-up conversations.**
+> **OncoSense helps people understand their own longitudinal health patterns, notice persistent changes from their personal baseline, organize cancer-screening follow-up, document context, and prepare better information for healthcare conversations.**
 
 ## Product experience
 
@@ -45,7 +46,9 @@ Signals + interactive insights
     ↓
 Longitudinal trends + interactive insights
     ↓
-Care context + documentation
+Cancer screening + care context
+    ↓
+Symptoms + appointment preparation
     ↓
 Better information for follow-up conversations
 ```
@@ -95,9 +98,64 @@ Every trend card in the Trends tab is also interactive. Selecting a trend opens 
 
 The UI uses lightweight SwiftUI drawing for the sparklines rather than heavyweight chart rendering. Lists use native lazy rendering and the trend screen uses `LazyVStack` to keep scrolling responsive as the local history grows.
 
-### Care: personalized context, not a form dump
+### Care: personalized cancer-care context
 
-The Care section is designed as a lightweight daily check-in:
+The Care section is more than a daily symptom form. It now combines personal care context, screening organization, symptom documentation, appointment preparation, and the existing daily check-in.
+
+#### Care journey
+
+The user can identify the context they are currently navigating:
+
+- Screening
+- Active treatment
+- Follow-up
+- Survivorship
+- Supporting someone
+
+This is user-entered context for organization and personalization. It does not alter or interpret a medical diagnosis.
+
+#### Screening & early detection tracker
+
+The Care section includes a simple status tracker for common screening pathways:
+
+- Breast
+- Cervical
+- Colorectal
+- Lung
+- Other / clinician advised
+
+Each pathway can be marked **Not tracked**, **Planned**, or **Completed**. This is intentionally a documentation and preparation tool. OncoSense does not decide that a person is eligible for screening, does not determine that screening is due, and does not interpret a screening result as cancer.
+
+Cancer screening is a clinical pathway, not a smartwatch prediction. Screening abnormalities require appropriate follow-up and diagnostic evaluation. Eligibility and timing depend on factors such as age, risk, sex, local guidance, available services, and clinical history.
+
+#### What I want to discuss
+
+Users can quickly record changes they want to mention to a healthcare professional, including:
+
+- new lump or swelling;
+- unusual bleeding;
+- persistent cough or voice change;
+- bowel or bladder changes;
+- unexplained weight change;
+- persistent pain;
+- persistent fatigue;
+- another user-defined concern.
+
+These selections are documentation prompts, not cancer predictions.
+
+#### Appointment preparation
+
+The user can save:
+
+- the next appointment date and time;
+- questions for the care team;
+- a compact care snapshot showing screening items completed/planned, discussion topics, and questions prepared.
+
+Questions and care context remain local to the device in the current implementation.
+
+#### Daily check-in
+
+The existing quick check-in remains available for:
 
 - fatigue with a 0–5 scale;
 - appetite with a 0–5 scale;
@@ -108,7 +166,7 @@ The Care section is designed as a lightweight daily check-in:
 
 The interface uses quick-tap scales instead of forcing repeated Stepper interactions. After saving, the entry is stored locally, the form resets to a clean state, and a brief confirmation appears. Text entry supports Return/Done submission, explicit keyboard dismissal, interactive keyboard dismissal, and automatic keyboard dismissal after saving.
 
-Care entries are shown beside the user's wearable context conceptually, but they are not converted into a diagnosis. The purpose is to preserve context around a physiological change and make follow-up conversations easier.
+Care entries are shown beside the user's wearable context conceptually, but they are not converted into a diagnosis. The purpose is to preserve context around a physiological change, organize screening follow-up, and make healthcare conversations easier.
 
 ## Current Apple experience
 
@@ -122,6 +180,9 @@ Care entries are shown beside the user's wearable context conceptually, but they
 - Interactive signal insight screens for individual measurements.
 - Interactive trend cards with longitudinal detail views.
 - Apple Watch connection screen with reachability, session, queued-transfer, and last-sync state.
+- Personalized cancer-care context and screening tracker.
+- Symptom/discussion documentation for follow-up conversations.
+- Appointment preparation and question list.
 - Personalized local Care Check-in for fatigue, appetite, pain, fever, and free-text notes.
 - Keyboard-safe Care entry with explicit Done and automatic dismissal after submit/save.
 - Learn screen that explains the product scope and what the signals do and do not mean.
@@ -185,13 +246,13 @@ OncoSense uses `updateApplicationContext` for the latest state and `transferUser
 
 ## Why OncoSense is not a cancer-detection button
 
-Cancer screening, diagnosis, and longitudinal health monitoring are different activities. An abnormal screening result generally requires additional clinical evaluation, while a wearable measurement is not by itself a diagnosis.
+Cancer screening, diagnosis, early diagnosis, and longitudinal health monitoring are different activities. Screening aims to identify findings suggestive of a specific cancer or pre-cancer in an appropriate target population; an abnormal screening result generally requires further diagnostic evaluation. A wearable measurement is not by itself a cancer diagnosis.
 
 Wearable sensors are an active research area in health and cancer research, including longitudinal measures such as sleep, activity, heart rate, and temperature. Research opportunity is not the same as clinical validation.
 
-Therefore, the current product does something narrower and more useful for a real-world prototype:
+Therefore, the current product does something narrower and safer for a real-world prototype:
 
-> **It makes persistent changes in a person's real physiological data easier to see, understand, document, and discuss with a clinician.**
+> **It makes persistent changes in a person's real physiological data easier to see, understand, document, organize alongside screening follow-up, and discuss with a clinician.**
 
 A persistent change is a reason to pay attention to the trend and context, not proof of a particular disease.
 
@@ -254,4 +315,4 @@ For WatchConnectivity testing, install the iPhone application together with its 
 
 OncoSense is not trying to make a smartwatch pretend to be a CT scanner.
 
-It is building a trustworthy longitudinal health companion: **real data in, personal context beside it, understandable trends out, and better information ready for the next healthcare conversation.**
+It is building a trustworthy longitudinal health companion: **real data in, personal context beside it, screening follow-up organized clearly, understandable trends out, and better information ready for the next healthcare conversation.**
