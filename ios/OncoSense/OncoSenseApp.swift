@@ -18,11 +18,11 @@ struct DashboardView: View {
     var body: some View {
         TabView {
             HomeView()
-                .tabItem { Label("Home", systemImage: "heart.text.square.fill") }
+                .tabItem { Label("Overview", systemImage: "heart.text.square.fill") }
             TimelineView()
                 .tabItem { Label("Timeline", systemImage: "chart.xyaxis.line") }
             InsightView()
-                .tabItem { Label("Why", systemImage: "sparkles") }
+                .tabItem { Label("How it works", systemImage: "waveform.path.ecg") }
         }
     }
 }
@@ -34,66 +34,139 @@ private struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text("Good morning")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("ONCOSENSE")
-                                .font(.title.bold())
-                        }
-                        Spacer()
-                        Image(systemName: "applewatch")
-                            .font(.title2)
+                    header
+                    connectionCard
+
+                    if let result = store.result {
+                        statusCard(result)
+                        metrics
+                        signals(result)
+                    } else {
+                        emptyState
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("EARLY SCREENING")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(store.result.state.title)
-                                .font(.system(size: 44, weight: .black))
-                            Spacer()
-                            Text("\(store.result.signal)/100")
-                                .font(.headline.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(store.result.summary)
-                            .foregroundStyle(.secondary)
+                    if let error = store.errorMessage {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
                     }
-                    .padding()
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24))
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("YOUR SIGNALS").font(.caption.bold()).foregroundStyle(.secondary)
-                        ForEach(Array(store.result.contributors.enumerated()), id: \.offset) { _, item in
-                            Label(item, systemImage: icon(for: item))
-                        }
-                    }
-
-                    HStack(spacing: 12) {
-                        MetricCard(title: "Persistence", value: "\(store.result.persistenceDays)d")
-                        MetricCard(title: "Data quality", value: "\(store.result.dataQuality)%")
-                    }
-
-                    Button {
-                        store.runDemoAnalysis()
-                    } label: {
-                        Label("Run analysis", systemImage: "waveform.path.ecg")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
                 }
                 .padding()
             }
             .navigationBarTitleDisplayMode(.inline)
+            .refreshable {
+                await store.refresh()
+            }
         }
     }
 
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("ONCOSENSE")
+                    .font(.title.bold())
+                Text("Personal health pattern monitoring")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "applewatch")
+                .font(.title2)
+        }
+    }
+
+    private var connectionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(store.watchStatusText, systemImage: store.sync.isReachable ? "applewatch.radiowaves.left.and.right" : "applewatch")
+                .font(.subheadline.weight(.semibold))
+            Text(store.isHealthConnected ? "Reading authorized Health data" : "Connect Apple Health to start using real measurements.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button(store.isHealthConnected ? "Refresh data" : "Connect Apple Health") {
+                    if store.isHealthConnected {
+                        Task { await store.refresh() }
+                    } else {
+                        store.connectHealth()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isRefreshing)
+
+                if store.isRefreshing {
+                    ProgressView()
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func statusCard(_ result: ScreeningResult) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("CURRENT PATTERN")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                Text(result.state.title)
+                    .font(.system(size: 34, weight: .black))
+                Spacer()
+                Text("\(result.signal)")
+                    .font(.title.bold().monospacedDigit())
+            }
+            Text(result.summary)
+                .foregroundStyle(.secondary)
+            if let date = store.lastSnapshot?.timestamp {
+                Text("Last measured \(date, style: .relative) ago")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24))
+    }
+
+    private var metrics: some View {
+        HStack(spacing: 12) {
+            MetricCard(title: "Persistence", value: "\(store.result?.persistenceDays ?? 0)d")
+            MetricCard(title: "Data quality", value: "\(store.result?.dataQuality ?? 0)%")
+        }
+    }
+
+    private func signals(_ result: ScreeningResult) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("MEASURED SIGNALS")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            ForEach(Array(result.contributors.enumerated()), id: \.offset) { _, item in
+                Label(item, systemImage: icon(for: item))
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "heart.text.square")
+                .font(.largeTitle)
+            Text("Building your personal baseline")
+                .font(.title3.bold())
+            Text("OncoSense needs at least two real HealthKit snapshots before it calculates a change score. No demo values are used.")
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+    }
+
     private func icon(for item: String) -> String {
-        if item.contains("Heart") { return "heart.fill" }
-        if item.contains("Breathing") { return "lungs.fill" }
+        if item.contains("heart") { return "heart.fill" }
+        if item.contains("variability") { return "waveform.path.ecg" }
+        if item.contains("Respiratory") { return "lungs.fill" }
         if item.contains("Sleep") { return "moon.fill" }
         if item.contains("Activity") { return "figure.walk" }
         return "waveform.path"
@@ -106,24 +179,42 @@ private struct TimelineView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Today") {
-                    Label(store.result.summary, systemImage: "circle.fill")
-                    Text("Signal \(store.result.signal)/100 · Data quality \(store.result.dataQuality)%")
-                        .foregroundStyle(.secondary)
-                }
-                Section("Recent snapshots") {
-                    ForEach(store.snapshots.prefix(20)) { snapshot in
-                        VStack(alignment: .leading) {
-                            Text(snapshot.timestamp, style: .date)
-                            Text(snapshot.timestamp, style: .time)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                if store.snapshots.isEmpty {
+                    ContentUnavailableView("No measurements yet", systemImage: "heart.text.square", description: Text("Connect Apple Health and refresh to collect your first real snapshot."))
+                } else {
+                    Section("Recent measurements") {
+                        ForEach(store.snapshots.prefix(30)) { snapshot in
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Text(snapshot.timestamp, style: .date)
+                                    Spacer()
+                                    Text(snapshot.timestamp, style: .time)
+                                }
+                                Text(metricsText(snapshot))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(snapshot.source)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Timeline")
+            .refreshable { await store.refresh() }
         }
+    }
+
+    private func metricsText(_ s: HealthSnapshot) -> String {
+        var values: [String] = []
+        if let value = s.restingHeartRate { values.append("RHR \(Int(value)) bpm") }
+        if let value = s.hrv { values.append("HRV \(Int(value)) ms") }
+        if let value = s.respiratoryRate { values.append("Resp \(value, specifier: "%.1f")/min") }
+        if let value = s.temperature { values.append("Temp \(value, specifier: "%.2f")°C") }
+        if let value = s.sleepHours { values.append("Sleep \(value, specifier: "%.1f")h") }
+        if let value = s.activityMinutes { values.append("Exercise \(Int(value))m") }
+        return values.isEmpty ? "No authorized measurements available" : values.joined(separator: " · ")
     }
 }
 
@@ -134,20 +225,21 @@ private struct InsightView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Why this signal?")
+                    Text("How OncoSense works")
                         .font(.largeTitle.bold())
-                    Text("OncoSense compares your recent physiological pattern with your personal baseline and looks for persistent multi-signal changes.")
+                    Text("OncoSense reads the Health data you authorize, stores timestamped measurements on-device, and compares new measurements with your personal history.")
                         .foregroundStyle(.secondary)
-                    InsightRow(title: "Signal", value: "\(store.result.signal)/100")
-                    InsightRow(title: "Persistence", value: "\(store.result.persistenceDays) days")
-                    InsightRow(title: "Data quality", value: "\(store.result.dataQuality)%")
-                    Text("The screening signal is a research feature. It is not a diagnosis or a substitute for clinical evaluation.")
+                    InfoRow(title: "Data source", value: store.isHealthConnected ? "Apple Health / HealthKit" : "Not connected")
+                    InfoRow(title: "Watch link", value: store.watchStatusText)
+                    InfoRow(title: "Measurements", value: "\(store.snapshots.count)")
+                    InfoRow(title: "Latest sync", value: store.sync.lastSync.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "None")
+                    Text("The pattern score is a research monitoring feature. It does not diagnose cancer. Persistent or concerning changes should be assessed by a qualified clinician.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 .padding()
             }
-            .navigationTitle("Insights")
+            .navigationTitle("How it works")
         }
     }
 }
@@ -156,7 +248,7 @@ private struct MetricCard: View {
     let title: String
     let value: String
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.title3.bold())
         }
@@ -166,11 +258,11 @@ private struct MetricCard: View {
     }
 }
 
-private struct InsightRow: View {
+private struct InfoRow: View {
     let title: String
     let value: String
     var body: some View {
-        HStack { Text(title); Spacer(); Text(value).bold() }
+        HStack { Text(title); Spacer(); Text(value).bold().multilineTextAlignment(.trailing) }
             .padding()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
