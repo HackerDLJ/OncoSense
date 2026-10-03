@@ -271,23 +271,56 @@ struct LearnView: View {
 struct WatchConnectionView: View {
     @EnvironmentObject private var store: OncoSenseStore
     @Environment(\.dismiss) private var dismiss
+
+    private var statusTitle: String {
+        if !store.sync.counterpartInstalled { return "Apple Watch app not installed" }
+        if !store.sync.isActivated { return "Setting up Apple Watch sync" }
+        return "Apple Watch paired"
+    }
+
+    private var statusDetail: String {
+        if !store.sync.counterpartInstalled { return "Install OncoSense on your paired Apple Watch to enable health-data sync." }
+        if !store.sync.isActivated { return "The WatchConnectivity session is activating. Keep both apps installed." }
+        return "Background sync is ready. The Watch does not need to be open for the latest snapshot to be queued."
+    }
+
+    private var statusIcon: String {
+        if !store.sync.counterpartInstalled { return "applewatch.slash" }
+        return store.sync.isActivated ? "applewatch" : "applewatch.and.arrow.forward"
+    }
+
     var body: some View {
         NavigationStack {
             List {
-                Section { Label(store.watchStatusText, systemImage: store.sync.isReachable ? "applewatch.radiowaves.left.and.right" : "applewatch").font(.headline) }
-                Section("Connection") {
-                    LabeledContent("Session", value: store.sync.isActivated ? "Activated" : "Not active")
-                    LabeledContent("Reachability", value: store.sync.isReachable ? "Reachable now" : "Not reachable")
-                    LabeledContent("Queued", value: "\(store.sync.pendingTransfers)")
-                    LabeledContent("Last sync", value: store.sync.lastSync.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
-                    LabeledContent("Last received", value: store.sync.lastReceived.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(statusTitle, systemImage: statusIcon)
+                            .font(.headline)
+                        Text(statusDetail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 }
+
+                Section("Sync status") {
+                    LabeledContent("Watch app", value: store.sync.counterpartInstalled ? "Installed" : "Not installed")
+                    LabeledContent("Session", value: store.sync.isActivated ? "Active" : "Starting")
+                    LabeledContent("Background sync", value: store.sync.isActivated && store.sync.counterpartInstalled ? "Ready" : "Waiting")
+                    LabeledContent("Pending transfers", value: "\(store.sync.pendingTransfers)")
+                    LabeledContent("Last sent", value: store.sync.lastSync.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Not yet")
+                    LabeledContent("Last received", value: store.sync.lastReceived.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Not yet")
+                }
+
                 Section {
                     Button("Sync latest health snapshot") { store.syncLatestToWatch() }
                     Button("Refresh from Apple Health") { Task { await store.refresh() } }
                 }
-                Section("What sync means") {
-                    Text("The iPhone and Watch exchange the latest real HealthKit snapshot. Immediate context is used when reachable; queued transfer keeps a snapshot available for later delivery when the devices cannot communicate at that moment.").font(.caption).foregroundStyle(.secondary)
+
+                Section("About live connection") {
+                    Text("The Apple Watch can be paired and synchronized even when the Watch app is not currently reachable for a live message. OncoSense therefore does not treat a temporary live-connection state as a pairing failure.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Apple Watch")
