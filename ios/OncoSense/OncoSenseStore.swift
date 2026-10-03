@@ -38,18 +38,22 @@ final class OncoSenseStore: ObservableObject {
         UserDefaults.standard.set(false, forKey: onboardingKey)
     }
 
-    func connectHealth() {
-        Task {
-            do {
-                try await health.requestAuthorization()
-                isHealthConnected = true
-                errorMessage = nil
-                await refresh()
-            } catch {
-                isHealthConnected = false
-                errorMessage = error.localizedDescription
-            }
+    func startSetup() async -> Bool {
+        do {
+            try await health.requestAuthorization()
+            isHealthConnected = true
+            errorMessage = nil
+            await refresh()
+            completeOnboarding()
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
+    }
+
+    func connectHealth() {
+        Task { _ = await startSetup() }
     }
 
     func refresh() async {
