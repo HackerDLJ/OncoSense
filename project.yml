@@ -22,12 +22,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hackerdlj.oncosense
         INFOPLIST_KEY_CFBundleDisplayName: OncoSense
-        INFOPLIST_KEY_NSHumanReadableCopyright: ""
         INFOPLIST_KEY_NSHealthShareUsageDescription: "OncoSense uses your authorized health data to build a personal physiological baseline and identify persistent changes."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "OncoSense does not write health data."
         SUPPORTS_MACCATALYST: false
-    dependencies:
-      - target: OncoSenseWatch
   OncoSenseWatch:
     type: application
     platform: watchOS
