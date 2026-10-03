@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 @MainActor
 final class OncoSenseStore: ObservableObject {
@@ -18,6 +19,7 @@ final class OncoSenseStore: ObservableObject {
     private let onboardingKey = "oncosense.onboarding.complete.v1"
 
     init() {
+        configureTabBarAppearance()
         isOnboardingComplete = UserDefaults.standard.bool(forKey: onboardingKey)
         load()
         sync.onSnapshot = { [weak self] snapshot in
@@ -72,9 +74,13 @@ final class OncoSenseStore: ObservableObject {
     }
 
     func syncLatestToWatch() {
-        guard let latest = lastSnapshot else { return }
+        guard let latest = lastSnapshot else {
+            sync.requestSnapshotFromWatch()
+            return
+        }
         sync.activate()
         sync.send(snapshot: latest)
+        sync.requestSnapshotFromWatch()
     }
 
     func ingest(_ snapshot: HealthSnapshot) {
@@ -135,5 +141,18 @@ final class OncoSenseStore: ObservableObject {
         snapshots = values.sorted { $0.timestamp > $1.timestamp }
         lastSnapshot = snapshots.first
         result = ScreeningEngine.analyze(snapshots)
+    }
+
+    private func configureTabBarAppearance() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemChromeMaterial)
+        appearance.backgroundColor = .clear
+        appearance.shadowColor = .clear
+
+        let tabBar = UITabBar.appearance()
+        tabBar.standardAppearance = appearance
+        tabBar.scrollEdgeAppearance = appearance
+        tabBar.isTranslucent = true
     }
 }
