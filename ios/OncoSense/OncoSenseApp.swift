@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 @main
 struct OncoSenseApp: App {
@@ -57,9 +58,7 @@ private struct HomeView: View {
                 .padding()
             }
             .navigationBarTitleDisplayMode(.inline)
-            .refreshable {
-                await store.refresh()
-            }
+            .refreshable { await store.refresh() }
         }
     }
 
@@ -96,9 +95,7 @@ private struct HomeView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(store.isRefreshing)
 
-                if store.isRefreshing {
-                    ProgressView()
-                }
+                if store.isRefreshing { ProgressView() }
             }
         }
         .padding()
@@ -164,11 +161,11 @@ private struct HomeView: View {
     }
 
     private func icon(for item: String) -> String {
-        if item.contains("heart") { return "heart.fill" }
-        if item.contains("variability") { return "waveform.path.ecg" }
-        if item.contains("Respiratory") { return "lungs.fill" }
-        if item.contains("Sleep") { return "moon.fill" }
-        if item.contains("Activity") { return "figure.walk" }
+        if item.localizedCaseInsensitiveContains("heart") { return "heart.fill" }
+        if item.localizedCaseInsensitiveContains("variability") { return "waveform.path.ecg" }
+        if item.localizedCaseInsensitiveContains("respiratory") { return "lungs.fill" }
+        if item.localizedCaseInsensitiveContains("sleep") { return "moon.fill" }
+        if item.localizedCaseInsensitiveContains("activity") { return "figure.walk" }
         return "waveform.path"
     }
 }
@@ -210,9 +207,9 @@ private struct TimelineView: View {
         var values: [String] = []
         if let value = s.restingHeartRate { values.append("RHR \(Int(value)) bpm") }
         if let value = s.hrv { values.append("HRV \(Int(value)) ms") }
-        if let value = s.respiratoryRate { values.append("Resp \(value, specifier: "%.1f")/min") }
-        if let value = s.temperature { values.append("Temp \(value, specifier: "%.2f")°C") }
-        if let value = s.sleepHours { values.append("Sleep \(value, specifier: "%.1f")h") }
+        if let value = s.respiratoryRate { values.append("Resp \(String(format: "%.1f", value))/min") }
+        if let value = s.temperature { values.append("Temp \(String(format: "%.2f", value))°C") }
+        if let value = s.sleepHours { values.append("Sleep \(String(format: "%.1f", value))h") }
         if let value = s.activityMinutes { values.append("Exercise \(Int(value))m") }
         return values.isEmpty ? "No authorized measurements available" : values.joined(separator: " · ")
     }
