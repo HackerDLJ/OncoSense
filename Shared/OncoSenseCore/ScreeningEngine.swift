@@ -13,12 +13,13 @@ struct ScreeningEngine {
         if let h = latest.hrv, let b = baseline.hrv, b > 0 { deviations.append(("Heart-rate variability", relativeDeviation(h, b))) }
         if let r = latest.respiratoryRate, let b = baseline.respiratoryRate, b > 0 { deviations.append(("Respiratory rate", relativeDeviation(r, b))) }
         if let t = latest.temperature, let b = baseline.temperature, b != 0 { deviations.append(("Wrist temperature", abs(t - b) / max(abs(b), 1) * 100)) }
-        if let s = latest.sleepHours, let b = baseline.sleepHours, b > 0 { deviations.append(("Sleep", relativeDeviation(s, b))) }
-        if let a = latest.activityMinutes, let b = baseline.activityMinutes, b > 0 { deviations.append(("Activity", relativeDeviation(a, b))) }
+        if let s = latest.sleepHours, let b = baseline.sleepHours, b > 0 { deviations.append(("Sleep duration", relativeDeviation(s, b))) }
+        if let a = latest.activityMinutes, let b = baseline.activityMinutes, b > 0 { deviations.append(("Exercise time", relativeDeviation(a, b))) }
 
         let changed = deviations.filter { $0.1 >= 10 }
         let score = min(100, Int(changed.reduce(0) { $0 + min($1.1, 25) } * 1.5))
-        let quality = min(100, 25 + deviations.count * 12 + min(history.count, 10))
+        let observed = deviations.count
+        let quality = min(100, 20 + observed * 11 + min(history.count, 14) * 2)
         let persistentDays = ordered.filter { $0.timestamp >= Date().addingTimeInterval(-7 * 86400) }.reduce(into: Set<String>()) { days, snapshot in
             let day = Calendar.current.startOfDay(for: snapshot.timestamp)
             days.insert(ISO8601DateFormatter().string(from: day))
@@ -28,21 +29,25 @@ struct ScreeningEngine {
         let summary: String
         switch state {
         case .low:
-            summary = "Your recent physiological pattern is close to your personal baseline."
+            summary = "Your available measurements are close to your personal baseline. Keep collecting data so the baseline becomes more reliable."
         case .watch:
-            summary = "One or more physiological measures differ from your personal baseline. Continue monitoring the trend."
+            summary = "At least one measured signal is meaningfully different from your personal baseline. The useful next step is to watch whether the change persists."
         case .earlySignal:
-            summary = "Several physiological measures differ from your personal baseline. Review the trend and consider discussing persistent changes with a clinician."
+            summary = "Several measured signals differ from your personal baseline. This is a pattern-change flag, not a cancer diagnosis. Persistent or concerning changes should be reviewed with a clinician."
         }
 
-        let contributors = deviations.prefix(6).map { "\($0.0) · \($0.1 >= 10 ? "Changed" : "Stable")" }
+        let contributors = deviations.sorted { $0.1 > $1.1 }.prefix(8).map { item in
+            let status = item.1 >= 10 ? "Changed \(Int(item.1.rounded()))%" : "Within baseline"
+            return "\(item.0) · \(status)"
+        }
+
         return ScreeningResult(
             state: state,
             signal: score,
             persistenceDays: persistentDays,
             dataQuality: quality,
             summary: summary,
-            contributors: contributors,
+            contributors: Array(contributors),
             generatedAt: .now
         )
     }
@@ -61,11 +66,15 @@ struct ScreeningEngine {
             timestamp: .now,
             source: HealthSnapshotSource.healthKit.rawValue,
             restingHeartRate: mean(snapshots.map(\.restingHeartRate)),
+            heartRate: mean(snapshots.map(\.heartRate)),
             hrv: mean(snapshots.map(\.hrv)),
             respiratoryRate: mean(snapshots.map(\.respiratoryRate)),
             temperature: mean(snapshots.map(\.temperature)),
             sleepHours: mean(snapshots.map(\.sleepHours)),
-            activityMinutes: mean(snapshots.map(\.activityMinutes))
+            activityMinutes: mean(snapshots.map(\.activityMinutes)),
+            steps: mean(snapshots.map(\.steps)),
+            activeEnergy: mean(snapshots.map(\.activeEnergy)),
+            weightKg: mean(snapshots.map(\.weightKg))
         )
     }
 }
