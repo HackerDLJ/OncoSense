@@ -27,7 +27,7 @@ struct OnboardingView: View {
                 .ignoresSafeArea()
             VStack(spacing: 20) {
                 HStack {
-                    Text("ONCOSENSE").font(.headline.bold().tracking(2))
+                    Text("ONCOSENSE").font(.headline.bold()).tracking(2)
                     Spacer()
                     Text("Setup").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 }
