@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct CareView: View {
     @StateObject private var checkIns = CareCheckInStore()
@@ -28,14 +29,16 @@ struct CareView: View {
                         .lineLimit(3...6)
                         .focused($noteFieldFocused)
                         .submitLabel(.done)
-                        .onSubmit {
-                            noteFieldFocused = false
-                        }
+                        .onSubmit { finishNoteEntry() }
 
-                    Button("Save check-in") {
-                        noteFieldFocused = false
-                        checkIns.save(fatigue: fatigue, appetite: appetite, pain: pain, fever: fever, note: note)
-                        note = ""
+                    Button {
+                        saveCheckIn()
+                    } label: {
+                        HStack {
+                            Text("Save check-in")
+                            Spacer()
+                            Image(systemName: "checkmark.circle.fill")
+                        }
                     }
                 }
 
@@ -59,19 +62,35 @@ struct CareView: View {
                 }
             }
             .navigationTitle("Care")
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") {
-                        noteFieldFocused = false
-                    }
+                    Button("Done") { finishNoteEntry() }
                 }
             }
         }
     }
+
+    private func finishNoteEntry() {
+        noteFieldFocused = false
+        dismissKeyboard()
+    }
+
+    private func saveCheckIn() {
+        finishNoteEntry()
+        checkIns.save(fatigue: fatigue, appetite: appetite, pain: pain, fever: fever, note: note)
+        note = ""
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }
 
 struct LearnView: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         NavigationStack {
             List {
@@ -93,12 +112,18 @@ struct LearnView: View {
                 }
             }
             .navigationTitle("Learn")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }
 
 struct WatchConnectionView: View {
     @EnvironmentObject private var store: OncoSenseStore
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -129,6 +154,11 @@ struct WatchConnectionView: View {
                 }
             }
             .navigationTitle("Apple Watch")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }
