@@ -101,6 +101,8 @@ struct MainShell: View {
             TrendsView().tabItem { Label("Trends", systemImage: "chart.xyaxis.line") }
             CareView().tabItem { Label("Care", systemImage: "person.text.rectangle") }
         }
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .sheet(isPresented: $showWatch) { WatchConnectionView().environmentObject(store) }
     }
 }
