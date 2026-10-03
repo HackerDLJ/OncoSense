@@ -9,9 +9,11 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    CURRENT_PROJECT_VERSION: 2
+    CURRENT_PROJECT_VERSION: 200
     MARKETING_VERSION: 2.0.0
     CODE_SIGN_STYLE: Automatic
+    GENERATE_INFOPLIST_FILE: YES
+
 targets:
   OncoSense:
     type: application
@@ -26,6 +28,7 @@ targets:
         INFOPLIST_KEY_NSHealthShareUsageDescription: "OncoSense uses your authorized health data to build a personal physiological baseline and identify persistent changes."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "OncoSense does not write health data."
         SUPPORTS_MACCATALYST: false
+
   OncoSenseWatch:
     type: application
     platform: watchOS
