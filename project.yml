@@ -13,7 +13,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    CURRENT_PROJECT_VERSION: 208
+    CURRENT_PROJECT_VERSION: 209
     MARKETING_VERSION: 2.0.1
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
@@ -28,6 +28,7 @@ targets:
     dependencies:
       - target: OncoSenseWatch
         embed: true
+        destinationFilters: [watchOS]
     info:
       path: ios/OncoSense/Info.plist
     settings:
@@ -41,7 +42,7 @@ targets:
         SUPPORTS_MACCATALYST: false
 
   OncoSenseWatch:
-    type: application.watchapp2
+    type: application
     platform: watchOS
     sources:
       - path: watchOS/OncoSenseWatch
@@ -61,7 +62,6 @@ schemes:
     build:
       targets:
         OncoSense: all
-        OncoSenseWatch: all
     run:
       config: Debug
       executable: OncoSense
