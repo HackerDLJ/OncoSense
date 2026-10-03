@@ -8,6 +8,8 @@ struct OncoSenseApp: App {
         WindowGroup {
             DashboardView()
                 .environmentObject(store)
+                .tint(.oncoAccent)
+                .preferredColorScheme(nil)
         }
     }
 }
@@ -22,7 +24,7 @@ struct DashboardView: View {
             TimelineView()
                 .tabItem { Label("Timeline", systemImage: "chart.xyaxis.line") }
             InsightView()
-                .tabItem { Label("Why", systemImage: "sparkles") }
+                .tabItem { Label("Insights", systemImage: "sparkles") }
         }
     }
 }
@@ -33,9 +35,9 @@ private struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        VStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text("Good morning")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -44,37 +46,50 @@ private struct HomeView: View {
                         }
                         Spacer()
                         Image(systemName: "applewatch")
-                            .font(.title2)
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.oncoAccent)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("EARLY SCREENING")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(store.result.state.title)
-                                .font(.system(size: 44, weight: .black))
-                            Spacer()
-                            Text("\(store.result.signal)/100")
-                                .font(.headline.monospacedDigit())
+                    OncoCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("EARLY SCREENING")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(.secondary)
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(store.result.state.title)
+                                    .font(.system(size: 44, weight: .black, design: .rounded))
+                                    .foregroundStyle(.oncoAccent)
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("SIGNAL")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(.secondary)
+                                    Text("\(store.result.signal)/100")
+                                        .font(.headline.monospacedDigit())
+                                }
+                            }
+                            Text(store.result.summary)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(store.result.summary)
-                            .foregroundStyle(.secondary)
                     }
-                    .padding()
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24))
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("YOUR SIGNALS").font(.caption.bold()).foregroundStyle(.secondary)
-                        ForEach(Array(store.result.contributors.enumerated()), id: \.offset) { _, item in
-                            Label(item, systemImage: icon(for: item))
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("YOUR SIGNALS")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            SignalPill(title: "Heart", value: "Stable", color: .oncoAccent)
+                            SignalPill(title: "Breathing", value: "Stable", color: .oncoAccent)
+                        }
+                        HStack(spacing: 10) {
+                            SignalPill(title: "Sleep", value: "Good", color: .oncoAccent)
+                            SignalPill(title: "Activity", value: "Normal", color: .oncoAccent)
                         }
                     }
 
-                    HStack(spacing: 12) {
-                        MetricCard(title: "Persistence", value: "\(store.result.persistenceDays)d")
-                        MetricCard(title: "Data quality", value: "\(store.result.dataQuality)%")
+                    HStack(spacing: 10) {
+                        SignalPill(title: "Persistence", value: "\(store.result.persistenceDays)d", color: .primary)
+                        SignalPill(title: "Data quality", value: "\(store.result.dataQuality)%", color: .oncoAccent)
                     }
 
                     Button {
@@ -87,16 +102,9 @@ private struct HomeView: View {
                 }
                 .padding()
             }
+            .background(Color.oncoBackground)
             .navigationBarTitleDisplayMode(.inline)
         }
-    }
-
-    private func icon(for item: String) -> String {
-        if item.contains("Heart") { return "heart.fill" }
-        if item.contains("Breathing") { return "lungs.fill" }
-        if item.contains("Sleep") { return "moon.fill" }
-        if item.contains("Activity") { return "figure.walk" }
-        return "waveform.path"
     }
 }
 
@@ -113,7 +121,7 @@ private struct TimelineView: View {
                 }
                 Section("Recent snapshots") {
                     ForEach(store.snapshots.prefix(20)) { snapshot in
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 3) {
                             Text(snapshot.timestamp, style: .date)
                             Text(snapshot.timestamp, style: .time)
                                 .font(.caption)
@@ -122,6 +130,8 @@ private struct TimelineView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.oncoBackground)
             .navigationTitle("Timeline")
         }
     }
@@ -133,36 +143,31 @@ private struct InsightView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Why this signal?")
                         .font(.largeTitle.bold())
                     Text("OncoSense compares your recent physiological pattern with your personal baseline and looks for persistent multi-signal changes.")
                         .foregroundStyle(.secondary)
-                    InsightRow(title: "Signal", value: "\(store.result.signal)/100")
-                    InsightRow(title: "Persistence", value: "\(store.result.persistenceDays) days")
-                    InsightRow(title: "Data quality", value: "\(store.result.dataQuality)%")
-                    Text("The screening signal is a research feature. It is not a diagnosis or a substitute for clinical evaluation.")
+
+                    OncoCard {
+                        VStack(spacing: 0) {
+                            InsightRow(title: "Signal", value: "\(store.result.signal)/100")
+                            Divider().padding(.vertical, 8)
+                            InsightRow(title: "Persistence", value: "\(store.result.persistenceDays) days")
+                            Divider().padding(.vertical, 8)
+                            InsightRow(title: "Data quality", value: "\(store.result.dataQuality)%")
+                        }
+                    }
+
+                    Text("OncoSense is a research screening system. A signal is not a diagnosis and should be interpreted with appropriate clinical context.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 .padding()
             }
+            .background(Color.oncoBackground)
             .navigationTitle("Insights")
         }
-    }
-}
-
-private struct MetricCard: View {
-    let title: String
-    let value: String
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.bold())
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -170,8 +175,12 @@ private struct InsightRow: View {
     let title: String
     let value: String
     var body: some View {
-        HStack { Text(title); Spacer(); Text(value).bold() }
-            .padding()
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        HStack {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .fontWeight(.semibold)
+        }
     }
 }
