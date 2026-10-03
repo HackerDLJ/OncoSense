@@ -19,8 +19,8 @@ final class OncoSenseStore: ObservableObject {
     private let onboardingKey = "oncosense.onboarding.complete.v1"
 
     init() {
-        configureTabBarAppearance()
         isOnboardingComplete = UserDefaults.standard.bool(forKey: onboardingKey)
+        configureTabBarAppearance()
         load()
         sync.onSnapshot = { [weak self] snapshot in
             Task { @MainActor in
