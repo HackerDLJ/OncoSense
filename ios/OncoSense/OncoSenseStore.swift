@@ -28,6 +28,11 @@ final class OncoSenseStore: ObservableObject {
             }
         }
         sync.activate()
+        // Connectivity may activate asynchronously. The connectivity layer
+        // retains this snapshot and sends it as soon as the session activates.
+        if let latest = lastSnapshot {
+            sync.send(snapshot: latest)
+        }
     }
 
     func completeOnboarding() {
@@ -74,12 +79,12 @@ final class OncoSenseStore: ObservableObject {
     }
 
     func syncLatestToWatch() {
-        guard let latest = lastSnapshot else {
-            sync.requestSnapshotFromWatch()
-            return
-        }
         sync.activate()
-        sync.send(snapshot: latest)
+        if let latest = lastSnapshot {
+            sync.send(snapshot: latest)
+        }
+        // This is queued, not a live message, so the Watch does not have to be
+        // open at the exact moment the button is pressed.
         sync.requestSnapshotFromWatch()
     }
 
@@ -100,9 +105,12 @@ final class OncoSenseStore: ObservableObject {
     }
 
     var watchStatusText: String {
-        if sync.isReachable { return "Apple Watch connected and reachable" }
-        if sync.isActivated { return "Apple Watch paired · waiting for reachability" }
-        return "Apple Watch link not active"
+        if sync.counterpartInstalled {
+            if sync.isReachable { return "Apple Watch connected now" }
+            if sync.isActivated { return "Apple Watch paired · background sync ready" }
+            return "Apple Watch installed · connecting"
+        }
+        return "Apple Watch app is not installed"
     }
 
     var availableSignalCount: Int {
