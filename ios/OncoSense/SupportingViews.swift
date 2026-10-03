@@ -17,6 +17,7 @@ struct CareView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     contextHeader
+                    CancerCareSection()
                     todayCard
                     noteCard
                     recentCard
