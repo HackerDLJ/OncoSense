@@ -13,7 +13,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    CURRENT_PROJECT_VERSION: 207
+    CURRENT_PROJECT_VERSION: 208
     MARKETING_VERSION: 2.0.1
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
@@ -41,7 +41,7 @@ targets:
         SUPPORTS_MACCATALYST: false
 
   OncoSenseWatch:
-    type: application
+    type: application.watchapp2
     platform: watchOS
     sources:
       - path: watchOS/OncoSenseWatch
