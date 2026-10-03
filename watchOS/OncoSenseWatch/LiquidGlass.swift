@@ -1,44 +1,35 @@
 import SwiftUI
 
+// Keep the visual treatment compatible with the current watchOS SDK used by CI.
+// The native watchOS 26 glassEffect API is intentionally not referenced here
+// because Xcode 16.4 ships a watchOS 11.x SDK and cannot compile that symbol.
+// The material treatment keeps the same translucent visual language and can be
+// swapped to native Liquid Glass when the project moves to an Xcode 26 SDK.
 struct WatchGlass<Content: View>: View {
     @ViewBuilder let content: Content
     var cornerRadius: CGFloat = 16
 
     var body: some View {
-        Group {
-            if #available(watchOS 26.0, *) {
-                content
-                    .padding(10)
-                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-            } else {
-                content
-                    .padding(10)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(.white.opacity(0.08), lineWidth: 1)
-                    }
+        content
+            .padding(10)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
             }
-        }
     }
 }
 
 struct WatchGlassButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        Group {
-            if #available(watchOS 26.0, *) {
-                configuration.label
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                    .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            } else {
-                configuration.label
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(.thinMaterial, in: Capsule())
-                    .scaleEffect(configuration.isPressed ? 0.96 : 1)
+        configuration.label
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(.thinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
             }
-        }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
     }
 }
