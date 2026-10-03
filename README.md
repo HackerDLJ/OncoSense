@@ -41,13 +41,13 @@ Real health measurements
     ↓
 Personal baseline
     ↓
-Longitudinal trends
+Signals + interactive insights
     ↓
-Persistent-change view
+Longitudinal trends + interactive insights
     ↓
-Explainable pattern context
+Care context + documentation
     ↓
-Care check-in + communication support
+Better information for follow-up conversations
 ```
 
 The core idea is **personalized change tracking**. OncoSense compares a person's recent measurements with their own history rather than turning a single population threshold into a diagnosis.
@@ -75,9 +75,40 @@ The Overview screen has actionable next steps rather than decorative rows:
 
 These actions are wired to real navigation state so tapping a row does not silently do nothing.
 
-### Care entry
+### Signals: tap for insight
 
-Care check-ins support fatigue, appetite, pain, fever/hot feeling, and optional notes. Text entry includes an explicit keyboard Done action, interactive keyboard dismissal, automatic dismissal on submit, and automatic dismissal when saving a check-in. The note is cleared after a successful save.
+Every supported signal in the Signals tab is interactive. Selecting a signal opens a dedicated insight view containing:
+
+- latest real HealthKit value;
+- personal average from recorded observations;
+- recent history sparkline;
+- observation count;
+- direction of change when enough observations exist;
+- plain-language explanation of what the measurement represents;
+- guidance for interpreting the trend in context.
+
+The insight view deliberately describes **the user's recorded data**, not a disease probability or diagnostic threshold. Missing values remain missing.
+
+### Trends: tap the exact trend
+
+Every trend card in the Trends tab is also interactive. Selecting a trend opens the same deeper signal-insight experience using the user's longitudinal history. The trend cards use a bounded set of recent observations to keep rendering responsive, while the detail view presents the full available recent history needed for the personal comparison.
+
+The UI uses lightweight SwiftUI drawing for the sparklines rather than heavyweight chart rendering. Lists use native lazy rendering and the trend screen uses `LazyVStack` to keep scrolling responsive as the local history grows.
+
+### Care: personalized context, not a form dump
+
+The Care section is designed as a lightweight daily check-in:
+
+- fatigue with a 0–5 scale;
+- appetite with a 0–5 scale;
+- pain with a 0–10 scale;
+- fever/hot-feeling toggle;
+- optional free-text context;
+- recent check-in timeline.
+
+The interface uses quick-tap scales instead of forcing repeated Stepper interactions. After saving, the entry is stored locally, the form resets to a clean state, and a brief confirmation appears. Text entry supports Return/Done submission, explicit keyboard dismissal, interactive keyboard dismissal, and automatic keyboard dismissal after saving.
+
+Care entries are shown beside the user's wearable context conceptually, but they are not converted into a diagnosis. The purpose is to preserve context around a physiological change and make follow-up conversations easier.
 
 ## Current Apple experience
 
@@ -88,9 +119,10 @@ Care check-ins support fatigue, appetite, pain, fever/hot feeling, and optional 
 - Ten supported signals: resting heart rate, heart rate, HRV, respiratory rate, sleeping wrist temperature, sleep duration, exercise time, steps, active energy, and weight when available.
 - Data-coverage indicator so the user can see how much real information is available.
 - Personal-pattern summary with contributors, data quality, and observed persistence.
-- Longitudinal trend cards built from actual observations.
+- Interactive signal insight screens for individual measurements.
+- Interactive trend cards with longitudinal detail views.
 - Apple Watch connection screen with reachability, session, queued-transfer, and last-sync state.
-- Local Care Check-in for fatigue, appetite, pain, fever, and free-text notes.
+- Personalized local Care Check-in for fatigue, appetite, pain, fever, and free-text notes.
 - Keyboard-safe Care entry with explicit Done and automatic dismissal after submit/save.
 - Learn screen that explains the product scope and what the signals do and do not mean.
 - Actionable Overview next steps connected to the Watch sheet, Care tab, and Learn sheet.
