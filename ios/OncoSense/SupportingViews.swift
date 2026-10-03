@@ -7,6 +7,7 @@ struct CareView: View {
     @State private var pain = 0
     @State private var fever = false
     @State private var note = ""
+    @FocusState private var noteFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -22,9 +23,17 @@ struct CareView: View {
                     Stepper("Appetite: \(appetite)/5", value: $appetite, in: 0...5)
                     Stepper("Pain: \(pain)/10", value: $pain, in: 0...10)
                     Toggle("Fever or unusually hot", isOn: $fever)
+
                     TextField("Optional note", text: $note, axis: .vertical)
                         .lineLimit(3...6)
+                        .focused($noteFieldFocused)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            noteFieldFocused = false
+                        }
+
                     Button("Save check-in") {
+                        noteFieldFocused = false
                         checkIns.save(fatigue: fatigue, appetite: appetite, pain: pain, fever: fever, note: note)
                         note = ""
                     }
@@ -50,6 +59,14 @@ struct CareView: View {
                 }
             }
             .navigationTitle("Care")
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        noteFieldFocused = false
+                    }
+                }
+            }
         }
     }
 }
@@ -59,14 +76,17 @@ struct LearnView: View {
         NavigationStack {
             List {
                 Section("What OncoSense does") {
-                    Text("OncoSense builds a personal physiological baseline from health data you authorize and looks for persistent changes from that baseline.")
-                    Text("It is a screening and monitoring research tool, not a cancer diagnosis. A pattern change needs clinical interpretation and, when appropriate, established medical testing.")
+                    Text("OncoSense tracks real health measurements, helps you visualize longitudinal trends, and compares recent observations with your personal baseline.")
+                    Text("It helps you document changes and prepare useful context for follow-up conversations. It does not diagnose cancer, predict cancer risk, recommend treatment, or replace established screening and clinical care.")
+                }
+                Section("The scope") {
+                    Text("OncoSense is focused on tracking, visualization, longitudinal documentation, and communication support. A persistent change can have many explanations and needs appropriate clinical interpretation.")
                 }
                 Section("Why the baseline matters") {
                     Text("A single heart-rate or sleep measurement is noisy. Trends over time provide more useful context about what is normal for one person.")
                 }
                 Section("The signals") {
-                    Text("OncoSense can use resting heart rate, heart rate, HRV, respiratory rate, wrist temperature, sleep, activity, steps, active energy and weight when those data are available in Apple Health.")
+                    Text("OncoSense can use resting heart rate, heart rate, HRV, respiratory rate, sleeping wrist temperature, sleep, activity, steps, active energy and weight when those data are available in Apple Health.")
                 }
                 Section("Data quality") {
                     Text("Missing measurements are shown as missing. OncoSense never fills gaps with invented health values.")
