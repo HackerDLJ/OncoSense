@@ -1,31 +1,71 @@
 import Foundation
 
 struct ScreeningEngine {
-    static func analyze(_ snapshots: [HealthSnapshot], baseline: HealthSnapshot?) -> ScreeningResult {
-        guard let latest = snapshots.sorted(by: { $0.timestamp > $1.timestamp }).first else { return .demo }
-        guard let baseline else {
-            return ScreeningResult(state: .low, signal: 0, persistenceDays: 0, dataQuality: 20, summary: "Building your personal baseline.", contributors: ["Collecting heart pattern", "Collecting breathing pattern", "Collecting sleep pattern", "Collecting activity pattern"], generatedAt: .now)
-        }
+    static func analyze(_ snapshots: [HealthSnapshot]) -> ScreeningResult? {
+        let ordered = snapshots.sorted { $0.timestamp > $1.timestamp }
+        guard let latest = ordered.first, ordered.count >= 2 else { return nil }
+
+        let history = Array(ordered.dropFirst()).prefix(30)
+        let baseline = average(history)
 
         var deviations: [(String, Double)] = []
-        if let h = latest.restingHeartRate, let b = baseline.restingHeartRate, b > 0 { deviations.append(("Heart pattern", abs((h - b) / b) * 100)) }
-        if let h = latest.hrv, let b = baseline.hrv, b > 0 { deviations.append(("HRV", abs((h - b) / b) * 100)) }
-        if let r = latest.respiratoryRate, let b = baseline.respiratoryRate, b > 0 { deviations.append(("Breathing", abs((r - b) / b) * 100)) }
-        if let t = latest.temperature, let b = baseline.temperature { deviations.append(("Temperature", abs(t - b) * 100)) }
-        if let s = latest.sleepHours, let b = baseline.sleepHours, b > 0 { deviations.append(("Sleep", abs((s - b) / b) * 100)) }
-        if let a = latest.activityMinutes, let b = baseline.activityMinutes, b > 0 { deviations.append(("Activity", abs((a - b) / b) * 100)) }
+        if let h = latest.restingHeartRate, let b = baseline.restingHeartRate, b > 0 { deviations.append(("Resting heart rate", relativeDeviation(h, b))) }
+        if let h = latest.hrv, let b = baseline.hrv, b > 0 { deviations.append(("Heart-rate variability", relativeDeviation(h, b))) }
+        if let r = latest.respiratoryRate, let b = baseline.respiratoryRate, b > 0 { deviations.append(("Respiratory rate", relativeDeviation(r, b))) }
+        if let t = latest.temperature, let b = baseline.temperature, b != 0 { deviations.append(("Wrist temperature", abs(t - b) / max(abs(b), 1) * 100)) }
+        if let s = latest.sleepHours, let b = baseline.sleepHours, b > 0 { deviations.append(("Sleep", relativeDeviation(s, b))) }
+        if let a = latest.activityMinutes, let b = baseline.activityMinutes, b > 0 { deviations.append(("Activity", relativeDeviation(a, b))) }
 
-        let meaningful = deviations.filter { $0.1 >= 10 }
-        let score = min(100, Int(meaningful.reduce(0) { $0 + min($1.1, 25) } * 1.5))
-        let quality = min(100, 35 + deviations.count * 11)
-        let state: ScreeningState = meaningful.count >= 3 ? .earlySignal : meaningful.count >= 1 ? .watch : .low
+        let changed = deviations.filter { $0.1 >= 10 }
+        let score = min(100, Int(changed.reduce(0) { $0 + min($1.1, 25) } * 1.5))
+        let quality = min(100, 25 + deviations.count * 12 + min(history.count, 10))
+        let persistentDays = ordered.filter { $0.timestamp >= Date().addingTimeInterval(-7 * 86400) }.reduce(into: Set<String>()) { days, snapshot in
+            let day = Calendar.current.startOfDay(for: snapshot.timestamp)
+            days.insert(ISO8601DateFormatter().string(from: day))
+        }.count
+
+        let state: ScreeningState = changed.count >= 3 ? .earlySignal : changed.count >= 1 ? .watch : .low
         let summary: String
         switch state {
-        case .low: summary = "Your recent physiological pattern is stable."
-        case .watch: summary = "A small physiological change is being watched against your baseline."
-        case .earlySignal: summary = "Several physiological signals have changed together. Review the details on your iPhone."
+        case .low:
+            summary = "Your recent physiological pattern is close to your personal baseline."
+        case .watch:
+            summary = "One or more physiological measures differ from your personal baseline. Continue monitoring the trend."
+        case .earlySignal:
+            summary = "Several physiological measures differ from your personal baseline. Review the trend and consider discussing persistent changes with a clinician."
         }
-        let contributors = deviations.prefix(4).map { "\($0.0) · \($0.1 >= 10 ? "Changed" : "Stable")" }
-        return ScreeningResult(state: state, signal: score, persistenceDays: meaningful.isEmpty ? 0 : 1, dataQuality: quality, summary: summary, contributors: contributors, generatedAt: .now)
+
+        let contributors = deviations.prefix(6).map { "\($0.0) · \($0.1 >= 10 ? "Changed" : "Stable")" }
+        return ScreeningResult(
+            state: state,
+            signal: score,
+            persistenceDays: persistentDays,
+            dataQuality: quality,
+            summary: summary,
+            contributors: contributors,
+            generatedAt: .now
+        )
+    }
+
+    private static func relativeDeviation(_ value: Double, _ baseline: Double) -> Double {
+        abs(value - baseline) / abs(baseline) * 100
+    }
+
+    private static func average(_ snapshots: ArraySlice<HealthSnapshot>) -> HealthSnapshot {
+        func mean(_ values: [Double?]) -> Double? {
+            let valid = values.compactMap { $0 }
+            guard !valid.isEmpty else { return nil }
+            return valid.reduce(0, +) / Double(valid.count)
+        }
+        return HealthSnapshot(
+            timestamp: .now,
+            source: HealthSnapshotSource.healthKit.rawValue,
+            restingHeartRate: mean(snapshots.map(\.restingHeartRate)),
+            hrv: mean(snapshots.map(\.hrv)),
+            respiratoryRate: mean(snapshots.map(\.respiratoryRate)),
+            temperature: mean(snapshots.map(\.temperature)),
+            sleepHours: mean(snapshots.map(\.sleepHours)),
+            activityMinutes: mean(snapshots.map(\.activityMinutes))
+        )
     }
 }
