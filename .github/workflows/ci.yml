@@ -7,19 +7,35 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install dependencies
+      - name: Install development dependencies
         working-directory: backend
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
       - name: Compile Python modules
         working-directory: backend
         run: python -m compileall app
+      - name: Run tests
+        working-directory: backend
+        run: PYTHONPATH=. pytest -q
       - name: Import application
         working-directory: backend
-        run: python -c "from app.main import app; print(app.title)"
+        run: PYTHONPATH=. python -c "from app.main import app; print(app.title)"
+
+  apple:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+      - name: Build watchOS simulator target
+        run: xcodebuild -project OncoSense.xcodeproj -scheme OncoSenseWatch -sdk watchsimulator -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Build iOS simulator target
+        run: xcodebuild -project OncoSense.xcodeproj -scheme OncoSense -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

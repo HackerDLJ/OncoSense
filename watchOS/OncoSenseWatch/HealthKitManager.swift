@@ -1,8 +1,8 @@
 import Foundation
+import Combine
 import HealthKit
 
 /// Reads user-authorized longitudinal health signals from Apple Health.
-/// The app never treats these measurements as a cancer diagnosis.
 final class HealthKitManager: ObservableObject {
     private let healthStore = HKHealthStore()
 
@@ -17,6 +17,10 @@ final class HealthKitManager: ObservableObject {
     ]
 
     func requestAuthorization(completion: @escaping (Result<Void, Error>) -> Void) {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            completion(.failure(NSError(domain: "OncoSense", code: 2, userInfo: [NSLocalizedDescriptionKey: "Health data is unavailable on this device."])))
+            return
+        }
         let readTypes = Set(quantityTypes.compactMap { HKObjectType.quantityType(forIdentifier: $0) })
         healthStore.requestAuthorization(toShare: [], read: readTypes) { success, error in
             DispatchQueue.main.async {
