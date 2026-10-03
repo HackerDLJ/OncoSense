@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct CareCheckIn: Codable, Identifiable {
     let id: UUID
