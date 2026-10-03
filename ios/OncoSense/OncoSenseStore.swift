@@ -14,7 +14,7 @@ final class OncoSenseStore: ObservableObject {
     let health = HealthDataManager()
     let sync = OncoSenseConnectivity.shared
 
-    private let key = "oncosense.snapshots.v4"
+    private let key = "oncosense.snapshots.v5"
     private let onboardingKey = "oncosense.onboarding.complete.v1"
 
     init() {
@@ -78,6 +78,12 @@ final class OncoSenseStore: ObservableObject {
     }
 
     func ingest(_ snapshot: HealthSnapshot) {
+        if let existing = snapshots.first, measurementsMatch(existing, snapshot) {
+            lastSnapshot = existing
+            result = ScreeningEngine.analyze(snapshots)
+            return
+        }
+
         guard !snapshots.contains(where: { $0.id == snapshot.id }) else { return }
         snapshots.append(snapshot)
         snapshots.sort { $0.timestamp > $1.timestamp }
@@ -88,8 +94,8 @@ final class OncoSenseStore: ObservableObject {
     }
 
     var watchStatusText: String {
-        if sync.isReachable { return "Apple Watch connected" }
-        if sync.isActivated { return "Apple Watch paired · not currently reachable" }
+        if sync.isReachable { return "Apple Watch connected and reachable" }
+        if sync.isActivated { return "Apple Watch paired · waiting for reachability" }
         return "Apple Watch link not active"
     }
 
@@ -102,6 +108,19 @@ final class OncoSenseStore: ObservableObject {
 
     var signalCoverage: Int {
         Int((Double(availableSignalCount) / 10.0 * 100).rounded())
+    }
+
+    private func measurementsMatch(_ a: HealthSnapshot, _ b: HealthSnapshot) -> Bool {
+        a.restingHeartRate == b.restingHeartRate &&
+        a.heartRate == b.heartRate &&
+        a.hrv == b.hrv &&
+        a.respiratoryRate == b.respiratoryRate &&
+        a.temperature == b.temperature &&
+        a.sleepHours == b.sleepHours &&
+        a.activityMinutes == b.activityMinutes &&
+        a.steps == b.steps &&
+        a.activeEnergy == b.activeEnergy &&
+        a.weightKg == b.weightKg
     }
 
     private func save() {
