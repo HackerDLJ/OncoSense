@@ -260,14 +260,13 @@ private struct TrendCard: View {
 private struct Sparkline: View {
     let values: [Double]
     var body: some View {
-        GeometryReader { proxy in
-            let minValue = values.min() ?? 0
-            let maxValue = values.max() ?? 1
-            let range = max(maxValue - minValue, 0.001)
+        GeometryReader { geo in
             Path { path in
+                guard let min = values.min(), let max = values.max(), values.count > 1 else { return }
+                let range = max - min == 0 ? 1 : max - min
                 for index in values.indices {
-                    let x = proxy.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
-                    let y = proxy.size.height - ((CGFloat(values[index] - minValue) / CGFloat(range)) * proxy.size.height)
+                    let x = geo.size.width * CGFloat(index) / CGFloat(values.count - 1)
+                    let y = geo.size.height - ((CGFloat(values[index] - min) / CGFloat(range)) * geo.size.height)
                     if index == values.startIndex { path.move(to: CGPoint(x: x, y: y)) }
                     else { path.addLine(to: CGPoint(x: x, y: y)) }
                 }
@@ -275,105 +274,4 @@ private struct Sparkline: View {
             .stroke(.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
         }
     }
-}
-
-private struct WatchConnectionView: View {
-    @EnvironmentObject private var store: OncoSenseStore
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Image(systemName: store.sync.isReachable ? "applewatch.radiowaves.left.and.right" : "applewatch")
-                        .font(.system(size: 54)).foregroundStyle(.tint)
-                    Text("Apple Watch").font(.largeTitle.bold())
-                    Text(store.watchStatusText).font(.headline)
-                    StatusRow(title: "Session", value: store.sync.isActivated ? "Activated" : "Waiting")
-                    StatusRow(title: "Reachability", value: store.sync.isReachable ? "Reachable now" : "Not reachable now")
-                    StatusRow(title: "Queued transfers", value: "\(store.sync.pendingTransfers)")
-                    StatusRow(title: "Last received", value: store.sync.lastReceived?.formatted(date: .abbreviated, time: .shortened) ?? "None")
-                    StatusRow(title: "Last sync", value: store.sync.lastSync?.formatted(date: .abbreviated, time: .shortened) ?? "None")
-                    Button("Sync latest snapshot to Watch") { store.syncLatestToWatch() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(store.lastSnapshot == nil)
-                    Text("The Watch reads authorized HealthKit data and can send snapshots through WatchConnectivity. Queued user-info transfers provide delivery when the devices are temporarily unreachable.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }.padding()
-            }
-            .navigationTitle("Watch link")
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
-        }
-    }
-}
-
-private struct StatusRow: View {
-    let title: String
-    let value: String
-    var body: some View {
-        HStack { Text(title).foregroundStyle(.secondary); Spacer(); Text(value).bold().multilineTextAlignment(.trailing) }
-            .padding().background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
-    }
-}
-
-private struct CareView: View {
-    @AppStorage("oncosense.care.fatigue") private var fatigue = 0
-    @AppStorage("oncosense.care.appetite") private var appetite = 0
-    @AppStorage("oncosense.care.pain") private var pain = 0
-    @AppStorage("oncosense.care.fever") private var fever = false
-    @AppStorage("oncosense.care.notes") private var notes = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("How are you feeling?") {
-                    Stepper("Fatigue: \(fatigue)/5", value: $fatigue, in: 0...5)
-                    Stepper("Appetite change: \(appetite)/5", value: $appetite, in: 0...5)
-                    Stepper("Pain: \(pain)/5", value: $pain, in: 0...5)
-                    Toggle("Fever / unusually hot", isOn: $fever)
-                }
-                Section("Context") {
-                    TextEditor(text: $notes).frame(minHeight: 120)
-                }
-                Section {
-                    Text("These notes add context that sensors cannot measure. They are not used to diagnose cancer.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("Care")
-        }
-    }
-}
-
-private struct LearnView: View {
-    @EnvironmentObject private var store: OncoSenseStore
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("What OncoSense does") {
-                    Text("It reads authorized HealthKit measurements, stores timestamped observations, compares recent measurements with your personal history, and highlights persistent changes.")
-                    Text("It can also receive Watch snapshots through WatchConnectivity.")
-                }
-                Section("What it does not do") {
-                    Text("A wearable pattern is not a cancer diagnosis. OncoSense does not replace established screening, diagnostic tests, or clinical care.")
-                }
-                Section("Current data") {
-                    InfoRow(title: "HealthKit", value: store.isHealthConnected ? "Connected" : "Not connected")
-                    InfoRow(title: "Signals available", value: "\(store.availableSignalCount)/10")
-                    InfoRow(title: "Watch", value: store.watchStatusText)
-                    InfoRow(title: "Stored observations", value: "\(store.snapshots.count)")
-                }
-                Section("Reset") {
-                    Button("Show setup walkthrough again") { store.resetOnboarding() }
-                }
-            }
-            .navigationTitle("Learn")
-        }
-    }
-}
-
-private struct InfoRow: View {
-    let title: String
-    let value: String
-    var body: some View { HStack { Text(title); Spacer(); Text(value).bold().multilineTextAlignment(.trailing) } }
 }
