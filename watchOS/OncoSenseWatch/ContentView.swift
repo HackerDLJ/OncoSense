@@ -3,13 +3,12 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var health: HealthKitManager
     @State private var screening = false
-    @State private var state = "LOW"
-    @State private var message = "Your recent physiological pattern is stable."
+    @State private var result = ScreeningResult.demo
     @State private var healthReady = false
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 10) {
+            VStack(spacing: 9) {
                 Text("🧬 ONCOSENSE")
                     .font(.headline.bold())
 
@@ -21,28 +20,32 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                Text(state)
+                Text(result.state.title)
                     .font(.system(size: 30, weight: .black))
-                    .foregroundStyle(state == "LOW" ? .green : .orange)
+                    .foregroundStyle(result.state == .low ? .green : .orange)
 
-                Text(message)
+                Text(result.summary)
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
 
                 Divider()
 
-                SignalRow(icon: "♥", title: "Heart pattern", value: "Stable")
-                SignalRow(icon: "🫁", title: "Breathing", value: "Stable")
-                SignalRow(icon: "🌡", title: "Temperature", value: "Stable")
-                SignalRow(icon: "☾", title: "Sleep", value: "Stable")
+                ForEach(Array(result.contributors.prefix(4).enumerated()), id: \.offset) { _, signal in
+                    SignalRow(text: signal)
+                }
 
                 Divider()
 
+                HStack(spacing: 12) {
+                    SmallStat(title: "SIGNAL", value: "\(result.signal)")
+                    SmallStat(title: "QUALITY", value: "\(result.dataQuality)%")
+                }
+
                 if !healthReady {
                     Button("Connect Apple Health") {
-                        health.requestAuthorization { result in
-                            if case .success = result { healthReady = true }
+                        health.requestAuthorization { authorization in
+                            if case .success = authorization { healthReady = true }
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -54,18 +57,13 @@ struct ContentView: View {
 
                 Button(screening ? "Screening On" : "Start Screening") {
                     screening = true
-                    message = "OncoSense is watching for persistent changes from your personal baseline."
                 }
                 .buttonStyle(.bordered)
 
-                Text("LAST 30 DAYS")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-
-                Text("No persistent cancer-related pattern detected")
+                Text("Updated just now · View details on iPhone")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 8)
         }
@@ -73,23 +71,26 @@ struct ContentView: View {
 }
 
 private struct SignalRow: View {
-    let icon: String
-    let title: String
-    let value: String
-
+    let text: String
     var body: some View {
-        HStack(spacing: 6) {
-            Text(icon).frame(width: 18)
-            Text(title).font(.caption2)
-            Spacer()
-            Text(value).font(.caption2).foregroundStyle(.green)
+        HStack {
             Image(systemName: "checkmark.circle.fill")
-                .font(.caption2)
                 .foregroundStyle(.green)
+            Text(text)
+                .font(.caption2)
+            Spacer()
         }
     }
 }
 
-#Preview {
-    ContentView().environmentObject(HealthKitManager())
+private struct SmallStat: View {
+    let title: String
+    let value: String
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(title).font(.system(size: 8)).foregroundStyle(.secondary)
+            Text(value).font(.caption.bold())
+        }
+        .frame(maxWidth: .infinity)
+    }
 }
