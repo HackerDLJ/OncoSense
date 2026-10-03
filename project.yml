@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    CURRENT_PROJECT_VERSION: 201
+    CURRENT_PROJECT_VERSION: 202
     MARKETING_VERSION: 2.0.0
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
@@ -21,6 +21,8 @@ targets:
     sources:
       - path: ios/OncoSense
       - path: Shared/OncoSenseCore
+    dependencies:
+      - target: OncoSenseWatch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hackerdlj.oncosense
@@ -44,3 +46,36 @@ targets:
         INFOPLIST_KEY_NSHealthShareUsageDescription: "OncoSense uses your authorized health data to build a personal physiological baseline and identify persistent changes."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "OncoSense does not write health data."
         CODE_SIGN_ENTITLEMENTS: watchOS/OncoSenseWatch/OncoSenseWatch.entitlements
+
+schemes:
+  OncoSense:
+    build:
+      targets:
+        OncoSense: all
+        OncoSenseWatch: all
+    run:
+      config: Debug
+      executable: OncoSense
+    test:
+      config: Debug
+      targets: []
+    profile:
+      config: Release
+      executable: OncoSense
+    archive:
+      config: Release
+  OncoSenseWatch:
+    build:
+      targets:
+        OncoSenseWatch: all
+    run:
+      config: Debug
+      executable: OncoSenseWatch
+    test:
+      config: Debug
+      targets: []
+    profile:
+      config: Release
+      executable: OncoSenseWatch
+    archive:
+      config: Release
