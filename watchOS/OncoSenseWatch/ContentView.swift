@@ -4,13 +4,14 @@ import Foundation
 struct ContentView: View {
     @EnvironmentObject private var health: HealthDataManager
     @EnvironmentObject private var sync: OncoSenseConnectivity
+
     @State private var snapshot: HealthSnapshot?
     @State private var result: ScreeningResult?
     @State private var history: [HealthSnapshot] = []
     @State private var healthReady = false
     @State private var isRefreshing = false
     @State private var errorMessage: String?
-    @State private var showSetup = !UserDefaults.standard.bool(forKey: "oncosense.watch.setup.v2")
+    @State private var showSetup = !UserDefaults.standard.bool(forKey: "oncosense.watch.setup.v3")
     @State private var showAllSignals = false
 
     private let historyKey = "oncosense.watch.snapshots.v3"
@@ -38,62 +39,65 @@ struct ContentView: View {
 
     private var setupView: some View {
         ScrollView {
-            VStack(spacing: 10) {
-                Image(systemName: "applewatch.and.arrow.forward")
-                    .font(.system(size: 34))
+            VStack(spacing: 12) {
+                Image(systemName: "applewatch")
+                    .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(.tint)
                 Text("OncoSense")
                     .font(.title3.bold())
-                Text("Your Watch reads the health data available to it and sends the latest snapshot to your iPhone.")
+                Text("Use your Watch to collect the real Apple Health measurements available on your device and keep your iPhone view up to date.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Real HealthKit data", systemImage: "checkmark.shield.fill")
-                    Label("Automatic iPhone sync", systemImage: "iphone.and.arrow.forward")
-                    Label("No invented measurements", systemImage: "slash.circle")
+                Button(isRefreshing ? "Connecting…" : "Connect Apple Health") {
+                    connectHealth()
                 }
-                .font(.caption2)
+                .buttonStyle(.borderedProminent)
+                .disabled(isRefreshing)
 
-                Button("Connect Apple Health") { connectHealth() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isRefreshing)
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.caption2)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.orange)
-                }
-
-                Text("OncoSense monitors changes in your personal pattern. It does not diagnose cancer.")
+                Text("OncoSense tracks changes from your personal baseline. It does not diagnose cancer or recommend treatment.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
         }
     }
 
     private var dashboard: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 9) {
-                    connectionCard
-                    patternCard
+                VStack(spacing: 10) {
+                    status
+                    summary
                     keySignals
                     Button("View all signals") { showAllSignals = true }
                         .font(.caption)
-                    syncButton
+                    Button(isRefreshing ? "Reading Health…" : "Refresh & Sync") {
+                        Task { await refreshAndSend() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isRefreshing)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption2)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.orange)
+                    }
                 }
-                .padding(.horizontal, 7)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
             }
             .navigationTitle("OncoSense")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { refresh() } label: { Image(systemName: "arrow.clockwise") }
-                        .disabled(isRefreshing)
+                    Button {
+                        Task { await refreshAndSend() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(isRefreshing)
                 }
             }
             .sheet(isPresented: $showAllSignals) {
@@ -102,31 +106,31 @@ struct ContentView: View {
         }
     }
 
-    private var connectionCard: some View {
+    private var status: some View {
         HStack(spacing: 7) {
-            Image(systemName: sync.isReachable ? "iphone.and.arrow.forward" : "iphone")
-                .foregroundStyle(sync.isReachable ? .green : .secondary)
+            Image(systemName: sync.counterpartInstalled ? "iphone" : "iphone.slash")
+                .foregroundStyle(sync.counterpartInstalled ? .green : .secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text(sync.isReachable ? "iPhone connected" : "Waiting for iPhone")
+                Text(sync.counterpartInstalled ? "iPhone ready" : "Install OncoSense on iPhone")
                     .font(.caption.bold())
-                Text(sync.isActivated ? "WatchConnectivity active" : "Connecting…")
+                Text(sync.counterpartInstalled ? "Health data syncs in the background" : "The Watch app cannot sync without its iPhone app")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(availableCount)/10")
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+            Circle()
+                .fill(sync.isActivated ? Color.green : Color.orange)
+                .frame(width: 7, height: 7)
         }
-        .padding(8)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(9)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    private var patternCard: some View {
+    private var summary: some View {
         VStack(spacing: 4) {
             if let result {
-                Text(result.state == .low ? "Close to baseline" : result.state == .watch ? "Change worth watching" : "Repeated changes")
-                    .font(.title3.bold())
+                Text(result.state == .low ? "Close to your baseline" : result.state == .watch ? "Change worth watching" : "Repeated changes")
+                    .font(.headline)
                 Text(result.summary)
                     .font(.caption2)
                     .multilineTextAlignment(.center)
@@ -136,49 +140,26 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             } else {
                 Text("Building your baseline")
-                    .font(.title3.bold())
-                Text("More real observations are needed before interpreting a pattern.")
+                    .font(.headline)
+                Text("More real observations are needed before describing a pattern.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 5)
+        .padding(.vertical, 4)
     }
 
     private var keySignals: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             SignalRow(title: "Resting HR", value: snapshot?.restingHeartRate.map { "\(Int($0)) bpm" }, icon: "heart.fill")
             SignalRow(title: "HRV", value: snapshot?.hrv.map { "\(Int($0)) ms" }, icon: "waveform.path.ecg.rectangle")
             SignalRow(title: "Respiratory", value: snapshot?.respiratoryRate.map { String(format: "%.1f/min", $0) }, icon: "lungs.fill")
             SignalRow(title: "Sleep", value: snapshot?.sleepHours.map { String(format: "%.1fh", $0) }, icon: "moon.fill")
-            SignalRow(title: "Wrist temp", value: snapshot?.temperature.map { String(format: "%.2f°C", $0) }, icon: "thermometer.medium")
         }
-    }
-
-    private var syncButton: some View {
-        VStack(spacing: 4) {
-            Button(isRefreshing ? "Reading Health…" : "Refresh & Sync") { refresh() }
-                .buttonStyle(.borderedProminent)
-                .disabled(isRefreshing)
-            if let lastSync = sync.lastSync {
-                Text("Last sent \(lastSync, style: .relative) ago")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            if sync.pendingTransfers > 0 {
-                Text("\(sync.pendingTransfers) item(s) queued")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            }
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption2)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.orange)
-            }
-        }
+        .padding(7)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var availableCount: Int {
@@ -195,19 +176,14 @@ struct ContentView: View {
             do {
                 try await health.requestAuthorization()
                 healthReady = true
-                UserDefaults.standard.set(true, forKey: "oncosense.watch.setup.v2")
+                UserDefaults.standard.set(true, forKey: "oncosense.watch.setup.v3")
                 showSetup = false
-                isRefreshing = false
                 await refreshAndSend()
             } catch {
                 errorMessage = error.localizedDescription
                 isRefreshing = false
             }
         }
-    }
-
-    private func refresh() {
-        Task { await refreshAndSend() }
     }
 
     private func refreshAndSend() async {
@@ -268,7 +244,7 @@ private struct AllSignalsView: View {
                 SignalRow(title: "Energy", value: snapshot?.activeEnergy.map { "\(Int($0)) kcal" }, icon: "flame.fill")
                 SignalRow(title: "Weight", value: snapshot?.weightKg.map { String(format: "%.1f kg", $0) }, icon: "scalemass.fill")
             }
-            .navigationTitle("All signals")
+            .navigationTitle("Signals")
         }
     }
 }
