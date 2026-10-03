@@ -9,13 +9,16 @@ final class OncoSenseStore: ObservableObject {
     @Published private(set) var isHealthConnected = false
     @Published private(set) var isRefreshing = false
     @Published private(set) var errorMessage: String?
+    @Published var isOnboardingComplete: Bool
 
     let health = HealthDataManager()
     let sync = OncoSenseConnectivity.shared
 
-    private let key = "oncosense.snapshots.v3"
+    private let key = "oncosense.snapshots.v4"
+    private let onboardingKey = "oncosense.onboarding.complete.v1"
 
     init() {
+        isOnboardingComplete = UserDefaults.standard.bool(forKey: onboardingKey)
         load()
         sync.onSnapshot = { [weak self] snapshot in
             Task { @MainActor in
@@ -23,6 +26,16 @@ final class OncoSenseStore: ObservableObject {
             }
         }
         sync.activate()
+    }
+
+    func completeOnboarding() {
+        isOnboardingComplete = true
+        UserDefaults.standard.set(true, forKey: onboardingKey)
+    }
+
+    func resetOnboarding() {
+        isOnboardingComplete = false
+        UserDefaults.standard.set(false, forKey: onboardingKey)
     }
 
     func connectHealth() {
@@ -54,6 +67,12 @@ final class OncoSenseStore: ObservableObject {
         }
     }
 
+    func syncLatestToWatch() {
+        guard let latest = lastSnapshot else { return }
+        sync.activate()
+        sync.send(snapshot: latest)
+    }
+
     func ingest(_ snapshot: HealthSnapshot) {
         guard !snapshots.contains(where: { $0.id == snapshot.id }) else { return }
         snapshots.append(snapshot)
@@ -65,9 +84,20 @@ final class OncoSenseStore: ObservableObject {
     }
 
     var watchStatusText: String {
-        if sync.isReachable { return "Watch connected" }
-        if sync.isActivated { return "Watch available · waiting for connection" }
-        return "Watch not connected"
+        if sync.isReachable { return "Apple Watch connected" }
+        if sync.isActivated { return "Apple Watch paired · not currently reachable" }
+        return "Apple Watch link not active"
+    }
+
+    var availableSignalCount: Int {
+        guard let snapshot = lastSnapshot else { return 0 }
+        return [snapshot.restingHeartRate, snapshot.heartRate, snapshot.hrv, snapshot.respiratoryRate,
+                snapshot.temperature, snapshot.sleepHours, snapshot.activityMinutes, snapshot.steps,
+                snapshot.activeEnergy, snapshot.weightKg].compactMap { $0 }.count
+    }
+
+    var signalCoverage: Int {
+        Int((Double(availableSignalCount) / 10.0 * 100).rounded())
     }
 
     private func save() {
