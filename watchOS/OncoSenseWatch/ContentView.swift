@@ -10,9 +10,10 @@ struct ContentView: View {
     @State private var healthReady = false
     @State private var isRefreshing = false
     @State private var errorMessage: String?
-    @State private var showSetup = !UserDefaults.standard.bool(forKey: "oncosense.watch.setup.v1")
+    @State private var showSetup = !UserDefaults.standard.bool(forKey: "oncosense.watch.setup.v2")
+    @State private var showAllSignals = false
 
-    private let historyKey = "oncosense.watch.snapshots.v2"
+    private let historyKey = "oncosense.watch.snapshots.v3"
 
     var body: some View {
         Group {
@@ -20,34 +21,40 @@ struct ContentView: View {
         }
         .task {
             loadHistory()
-            sync.activate()
             sync.onSnapshot = { incoming in
                 Task { @MainActor in
                     snapshot = incoming
                     append(incoming)
                 }
             }
+            sync.onSnapshotRequest = {
+                Task { @MainActor in
+                    await refreshAndSend()
+                }
+            }
+            sync.activate()
         }
     }
 
     private var setupView: some View {
         ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: "applewatch")
-                    .font(.system(size: 38))
+            VStack(spacing: 10) {
+                Image(systemName: "applewatch.and.arrow.forward")
+                    .font(.system(size: 34))
                     .foregroundStyle(.tint)
                 Text("OncoSense")
-                    .font(.title2.bold())
-                Text("Your Watch is the collection point. Your iPhone is the long-term health view.")
-                    .font(.caption)
+                    .font(.title3.bold())
+                Text("Your Watch reads the health data available to it and sends the latest snapshot to your iPhone.")
+                    .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
-                Label("Real HealthKit data only", systemImage: "checkmark.shield.fill")
-                    .font(.caption2)
-                Label("Queued Watch → iPhone sync", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.caption2)
-                Label("No fake measurements", systemImage: "slash.circle")
-                    .font(.caption2)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Real HealthKit data", systemImage: "checkmark.shield.fill")
+                    Label("Automatic iPhone sync", systemImage: "iphone.and.arrow.forward")
+                    Label("No invented measurements", systemImage: "slash.circle")
+                }
+                .font(.caption2)
 
                 Button("Connect Apple Health") { connectHealth() }
                     .buttonStyle(.borderedProminent)
@@ -60,7 +67,7 @@ struct ContentView: View {
                         .foregroundStyle(.orange)
                 }
 
-                Text("OncoSense highlights changes in your personal health pattern. It does not diagnose cancer.")
+                Text("OncoSense monitors changes in your personal pattern. It does not diagnose cancer.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
@@ -72,13 +79,15 @@ struct ContentView: View {
     private var dashboard: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 10) {
-                    header
-                    pattern
-                    signalSection
-                    syncSection
+                VStack(spacing: 9) {
+                    connectionCard
+                    patternCard
+                    keySignals
+                    Button("View all signals") { showAllSignals = true }
+                        .font(.caption)
+                    syncButton
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 7)
             }
             .navigationTitle("OncoSense")
             .toolbar {
@@ -87,76 +96,79 @@ struct ContentView: View {
                         .disabled(isRefreshing)
                 }
             }
+            .sheet(isPresented: $showAllSignals) {
+                AllSignalsView(snapshot: snapshot)
+            }
         }
     }
 
-    private var header: some View {
-        VStack(spacing: 5) {
-            HStack {
-                Label(sync.isReachable ? "iPhone connected" : "iPhone not reachable", systemImage: sync.isReachable ? "iphone.and.arrow.forward" : "iphone")
-                    .font(.caption2.weight(.semibold))
-                Spacer()
-                Text("\(availableCount)/10")
-                    .font(.caption2.monospacedDigit())
+    private var connectionCard: some View {
+        HStack(spacing: 7) {
+            Image(systemName: sync.isReachable ? "iphone.and.arrow.forward" : "iphone")
+                .foregroundStyle(sync.isReachable ? .green : .secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(sync.isReachable ? "iPhone connected" : "Waiting for iPhone")
+                    .font(.caption.bold())
+                Text(sync.isActivated ? "WatchConnectivity active" : "Connecting…")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Text("Real signals from Apple Health")
-                .font(.caption)
+            Spacer()
+            Text("\(availableCount)/10")
+                .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
+        .padding(8)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var pattern: some View {
-        VStack(spacing: 5) {
+    private var patternCard: some View {
+        VStack(spacing: 4) {
             if let result {
-                Text(result.state == .low ? "Close to baseline" : result.state == .watch ? "Change detected" : "Multiple changes")
+                Text(result.state == .low ? "Close to baseline" : result.state == .watch ? "Change worth watching" : "Repeated changes")
                     .font(.title3.bold())
                 Text(result.summary)
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
-                Text("Pattern score \(result.signal)")
+                Text("Data quality \(result.dataQuality)%")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
             } else {
-                Text("Building baseline")
+                Text("Building your baseline")
                     .font(.title3.bold())
-                Text("Collect more real measurements before interpreting a pattern.")
+                Text("More real observations are needed before interpreting a pattern.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5)
     }
 
-    private var signalSection: some View {
-        VStack(spacing: 8) {
+    private var keySignals: some View {
+        VStack(spacing: 6) {
             SignalRow(title: "Resting HR", value: snapshot?.restingHeartRate.map { "\(Int($0)) bpm" }, icon: "heart.fill")
-            SignalRow(title: "Heart rate", value: snapshot?.heartRate.map { "\(Int($0)) bpm" }, icon: "waveform.path.ecg")
             SignalRow(title: "HRV", value: snapshot?.hrv.map { "\(Int($0)) ms" }, icon: "waveform.path.ecg.rectangle")
             SignalRow(title: "Respiratory", value: snapshot?.respiratoryRate.map { String(format: "%.1f/min", $0) }, icon: "lungs.fill")
-            SignalRow(title: "Wrist temp", value: snapshot?.temperature.map { String(format: "%.2f°C", $0) }, icon: "thermometer.medium")
             SignalRow(title: "Sleep", value: snapshot?.sleepHours.map { String(format: "%.1fh", $0) }, icon: "moon.fill")
-            SignalRow(title: "Steps", value: snapshot?.steps.map { "\(Int($0))" }, icon: "figure.walk")
-            SignalRow(title: "Energy", value: snapshot?.activeEnergy.map { "\(Int($0)) kcal" }, icon: "flame.fill")
-            SignalRow(title: "Exercise", value: snapshot?.activityMinutes.map { "\(Int($0)) min" }, icon: "figure.run")
-            SignalRow(title: "Weight", value: snapshot?.weightKg.map { String(format: "%.1f kg", $0) }, icon: "scalemass.fill")
+            SignalRow(title: "Wrist temp", value: snapshot?.temperature.map { String(format: "%.2f°C", $0) }, icon: "thermometer.medium")
         }
     }
 
-    private var syncSection: some View {
-        VStack(spacing: 7) {
+    private var syncButton: some View {
+        VStack(spacing: 4) {
             Button(isRefreshing ? "Reading Health…" : "Refresh & Sync") { refresh() }
                 .buttonStyle(.borderedProminent)
                 .disabled(isRefreshing)
             if let lastSync = sync.lastSync {
-                Text("Last transfer \(lastSync, style: .relative) ago")
+                Text("Last sent \(lastSync, style: .relative) ago")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             if sync.pendingTransfers > 0 {
-                Text("\(sync.pendingTransfers) transfer(s) queued for iPhone")
+                Text("\(sync.pendingTransfers) item(s) queued")
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
@@ -167,7 +179,6 @@ struct ContentView: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(.vertical, 4)
     }
 
     private var availableCount: Int {
@@ -184,10 +195,10 @@ struct ContentView: View {
             do {
                 try await health.requestAuthorization()
                 healthReady = true
-                UserDefaults.standard.set(true, forKey: "oncosense.watch.setup.v1")
+                UserDefaults.standard.set(true, forKey: "oncosense.watch.setup.v2")
                 showSetup = false
                 isRefreshing = false
-                refresh()
+                await refreshAndSend()
             } catch {
                 errorMessage = error.localizedDescription
                 isRefreshing = false
@@ -196,20 +207,26 @@ struct ContentView: View {
     }
 
     private func refresh() {
+        Task { await refreshAndSend() }
+    }
+
+    private func refreshAndSend() async {
         guard !isRefreshing else { return }
         isRefreshing = true
         errorMessage = nil
-        Task {
-            defer { isRefreshing = false }
-            do {
-                if !healthReady { try await health.requestAuthorization(); healthReady = true }
-                let fresh = try await health.fetchLatestSnapshot()
-                snapshot = fresh
-                append(fresh)
-                sync.send(snapshot: fresh)
-            } catch {
-                errorMessage = error.localizedDescription
+        defer { isRefreshing = false }
+
+        do {
+            if !healthReady {
+                try await health.requestAuthorization()
+                healthReady = true
             }
+            let fresh = try await health.fetchLatestSnapshot()
+            snapshot = fresh
+            append(fresh)
+            sync.send(snapshot: fresh)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -231,6 +248,28 @@ struct ContentView: View {
         snapshot = history.first
         result = ScreeningEngine.analyze(history)
         healthReady = !history.isEmpty
+    }
+}
+
+private struct AllSignalsView: View {
+    let snapshot: HealthSnapshot?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                SignalRow(title: "Resting HR", value: snapshot?.restingHeartRate.map { "\(Int($0)) bpm" }, icon: "heart.fill")
+                SignalRow(title: "Heart rate", value: snapshot?.heartRate.map { "\(Int($0)) bpm" }, icon: "waveform.path.ecg")
+                SignalRow(title: "HRV", value: snapshot?.hrv.map { "\(Int($0)) ms" }, icon: "waveform.path.ecg.rectangle")
+                SignalRow(title: "Respiratory", value: snapshot?.respiratoryRate.map { String(format: "%.1f/min", $0) }, icon: "lungs.fill")
+                SignalRow(title: "Wrist temp", value: snapshot?.temperature.map { String(format: "%.2f°C", $0) }, icon: "thermometer.medium")
+                SignalRow(title: "Sleep", value: snapshot?.sleepHours.map { String(format: "%.1fh", $0) }, icon: "moon.fill")
+                SignalRow(title: "Exercise", value: snapshot?.activityMinutes.map { "\(Int($0)) min" }, icon: "figure.run")
+                SignalRow(title: "Steps", value: snapshot?.steps.map { "\(Int($0))" }, icon: "figure.walk")
+                SignalRow(title: "Energy", value: snapshot?.activeEnergy.map { "\(Int($0)) kcal" }, icon: "flame.fill")
+                SignalRow(title: "Weight", value: snapshot?.weightKg.map { String(format: "%.1f kg", $0) }, icon: "scalemass.fill")
+            }
+            .navigationTitle("All signals")
+        }
     }
 }
 
