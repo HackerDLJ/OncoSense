@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 @main
 struct OncoSenseApp: App {
@@ -51,10 +52,14 @@ struct OnboardingView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        isSettingUp = true
-                        Task {
-                            _ = await store.startSetup()
-                            isSettingUp = false
+                        if page < 3 {
+                            page += 1
+                        } else {
+                            isSettingUp = true
+                            Task {
+                                _ = await store.startSetup()
+                                isSettingUp = false
+                            }
                         }
                     } label: {
                         HStack {
@@ -66,8 +71,8 @@ struct OnboardingView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(isSettingUp)
 
-                    if page < 3 {
-                        Button("Skip for now") { page += 1 }
+                    if page > 0 && page < 3 {
+                        Button("Back") { page -= 1 }
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
