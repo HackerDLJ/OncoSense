@@ -12,6 +12,9 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     @Published private(set) var pendingTransfers = 0
 
     var onSnapshot: ((HealthSnapshot) -> Void)?
+    #if os(watchOS)
+    var onSnapshotRequest: (() -> Void)?
+    #endif
 
     private let session: WCSession? = WCSession.isSupported() ? WCSession.default : nil
 
@@ -23,31 +26,53 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         guard let session else { return }
         session.delegate = self
         session.activate()
+        publishState(session)
     }
 
     func send(snapshot: HealthSnapshot) {
-        guard let session, session.activationState == .activated,
+        guard let session,
+              session.activationState == .activated,
               let data = try? JSONEncoder().encode(snapshot) else { return }
 
         let payload: [String: Any] = ["snapshot": data]
 
-        // Application context always represents the newest known state.
+        // Application context represents the newest known state and survives
+        // temporary reachability changes.
         try? session.updateApplicationContext(payload)
 
-        // If both apps are active and reachable, deliver immediately.
         if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { _ in
-                // The application context remains the fallback delivery path.
+            session.sendMessage(payload, replyHandler: nil) { error in
+                // The application context remains the durable latest-state path.
+                print("[OncoSenseConnectivity] sendMessage failed: \(error.localizedDescription)")
             }
         } else {
-            // When the counterpart is not reachable, queue one durable transfer.
             session.transferUserInfo(payload)
         }
 
+        DispatchQueue.main.async {
+            self.lastSync = .now
+        }
         publishState(session)
     }
 
-    private func receive(_ userInfo: [String: Any], session: WCSession) {
+    /// Ask the Watch to read its current HealthKit snapshot and send it back.
+    /// If the Watch is not reachable, queue the request for later delivery.
+    func requestSnapshotFromWatch() {
+        guard let session,
+              session.activationState == .activated else { return }
+
+        let request: [String: Any] = ["command": "requestSnapshot"]
+        if session.isReachable {
+            session.sendMessage(request, replyHandler: nil) { error in
+                print("[OncoSenseConnectivity] snapshot request failed: \(error.localizedDescription)")
+            }
+        } else {
+            session.transferUserInfo(request)
+        }
+        publishState(session)
+    }
+
+    private func receiveSnapshot(_ userInfo: [String: Any], session: WCSession) {
         guard let data = userInfo["snapshot"] as? Data,
               let snapshot = try? JSONDecoder().decode(HealthSnapshot.self, from: data) else { return }
 
@@ -56,6 +81,24 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
             self.pendingTransfers = session.outstandingUserInfoTransfers.count
             self.onSnapshot?(snapshot)
         }
+    }
+
+    private func handle(_ userInfo: [String: Any], session: WCSession) {
+        if let command = userInfo["command"] as? String {
+            #if os(watchOS)
+            if command == "requestSnapshot" {
+                DispatchQueue.main.async {
+                    self.onSnapshotRequest?()
+                }
+            }
+            #endif
+        }
+
+        if userInfo["snapshot"] != nil {
+            receiveSnapshot(userInfo, session: session)
+        }
+
+        publishState(session)
     }
 
     private func publishState(_ session: WCSession) {
@@ -67,11 +110,10 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     }
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        DispatchQueue.main.async {
-            self.isActivated = activationState == .activated
-            self.isReachable = session.isReachable
-            self.pendingTransfers = session.outstandingUserInfoTransfers.count
+        if let error {
+            print("[OncoSenseConnectivity] activation failed: \(error.localizedDescription)")
         }
+        publishState(session)
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
@@ -79,19 +121,21 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        receive(applicationContext, session: session)
+        handle(applicationContext, session: session)
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        receive(userInfo, session: session)
+        handle(userInfo, session: session)
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        receive(message, session: session)
+        handle(message, session: session)
     }
 
 #if os(iOS)
-    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidBecomeInactive(_ session: WCSession) {
+        publishState(session)
+    }
 
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
