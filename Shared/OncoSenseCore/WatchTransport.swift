@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 #if canImport(WatchConnectivity)
 import WatchConnectivity
 #endif
@@ -26,7 +27,6 @@ public struct WatchHealthPayload: Codable, Sendable {
 #if canImport(WatchConnectivity)
 public final class WatchTransport: NSObject, ObservableObject, WCSessionDelegate {
     public static let shared = WatchTransport()
-
     @Published public private(set) var reachable = false
     @Published public private(set) var lastPayload: WatchHealthPayload?
 
@@ -43,9 +43,7 @@ public final class WatchTransport: NSObject, ObservableObject, WCSessionDelegate
         guard let data = try? JSONEncoder().encode(payload) else { return }
         let message: [String: Any] = ["type": "healthSnapshot", "payload": data]
         let session = WCSession.default
-        if session.isReachable {
-            session.sendMessage(message, replyHandler: nil)
-        }
+        if session.isReachable { session.sendMessage(message, replyHandler: nil) }
         session.transferUserInfo(message)
     }
 
@@ -57,13 +55,8 @@ public final class WatchTransport: NSObject, ObservableObject, WCSessionDelegate
         DispatchQueue.main.async { self.reachable = session.isReachable }
     }
 
-    public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
-        receive(message)
-    }
-
-    public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
-        receive(userInfo)
-    }
+    public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) { receive(message) }
+    public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) { receive(userInfo) }
 
     private func receive(_ message: [String: Any]) {
         guard let data = message["payload"] as? Data,
