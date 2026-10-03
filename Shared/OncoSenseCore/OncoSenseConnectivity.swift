@@ -30,16 +30,28 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
               let data = try? JSONEncoder().encode(snapshot) else { return }
 
         let payload: [String: Any] = ["snapshot": data]
+
+        // Application context always represents the newest known state.
         try? session.updateApplicationContext(payload)
-        session.transferUserInfo(payload)
+
+        // If both apps are active and reachable, deliver immediately.
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { _ in
+                // The application context remains the fallback delivery path.
+            }
+        } else {
+            // When the counterpart is not reachable, queue one durable transfer.
+            session.transferUserInfo(payload)
+        }
+
         publishState(session)
     }
 
     private func receive(_ userInfo: [String: Any], session: WCSession) {
         guard let data = userInfo["snapshot"] as? Data,
               let snapshot = try? JSONDecoder().decode(HealthSnapshot.self, from: data) else { return }
+
         DispatchQueue.main.async {
-            self.lastSync = .now
             self.lastReceived = .now
             self.pendingTransfers = session.outstandingUserInfoTransfers.count
             self.onSnapshot?(snapshot)
@@ -51,9 +63,6 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
             self.isActivated = session.activationState == .activated
             self.isReachable = session.isReachable
             self.pendingTransfers = session.outstandingUserInfoTransfers.count
-            if session.activationState == .activated {
-                self.lastSync = .now
-            }
         }
     }
 
@@ -69,16 +78,21 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         publishState(session)
     }
 
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         receive(applicationContext, session: session)
     }
 
-    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         receive(userInfo, session: session)
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        receive(message, session: session)
     }
 
 #if os(iOS)
     func sessionDidBecomeInactive(_ session: WCSession) {}
+
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
     }
