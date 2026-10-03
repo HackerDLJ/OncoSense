@@ -1,96 +1,140 @@
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var health: HealthKitManager
-    @State private var screening = false
-    @State private var result = ScreeningResult.demo
+    @EnvironmentObject private var health: HealthDataManager
+    @EnvironmentObject private var sync: OncoSenseConnectivity
+    @State private var snapshot: HealthSnapshot?
+    @State private var result: ScreeningResult?
     @State private var healthReady = false
+    @State private var isRefreshing = false
+    @State private var errorMessage: String?
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 9) {
-                Text("🧬 ONCOSENSE")
+            VStack(spacing: 10) {
+                Text("ONCOSENSE")
                     .font(.headline.bold())
 
-                Text(screening ? "● EARLY SCREENING" : "○ READY")
-                    .font(.caption2)
-                    .foregroundStyle(screening ? .green : .secondary)
+                HStack(spacing: 6) {
+                    Image(systemName: sync.isReachable ? "iphone.and.arrow.forward" : "iphone")
+                    Text(sync.isReachable ? "iPhone connected" : "iPhone not reachable")
+                }
+                .font(.caption2)
+                .foregroundStyle(sync.isReachable ? .green : .secondary)
 
-                Text("CANCER RISK SIGNAL")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-
-                Text(result.state.title)
-                    .font(.system(size: 30, weight: .black))
-                    .foregroundStyle(result.state == .low ? .green : .orange)
-
-                Text(result.summary)
-                    .font(.caption2)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-
-                Divider()
-
-                ForEach(Array(result.contributors.prefix(4).enumerated()), id: \.offset) { _, signal in
-                    SignalRow(text: signal)
+                if let result {
+                    Text(result.state.title)
+                        .font(.system(size: 30, weight: .black))
+                    Text(result.summary)
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Image(systemName: "heart.text.square")
+                        .font(.largeTitle)
+                    Text("No real measurements yet")
+                        .font(.headline)
+                    Text("Connect Apple Health, then refresh to collect a real snapshot.")
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
                 }
 
-                Divider()
-
-                HStack(spacing: 12) {
-                    SmallStat(title: "SIGNAL", value: "\(result.signal)")
-                    SmallStat(title: "QUALITY", value: "\(result.dataQuality)%")
+                if let snapshot {
+                    Divider()
+                    MetricRow(title: "Resting HR", value: snapshot.restingHeartRate.map { "\(Int($0)) bpm" } ?? "—")
+                    MetricRow(title: "HRV", value: snapshot.hrv.map { "\(Int($0)) ms" } ?? "—")
+                    MetricRow(title: "Respiratory", value: snapshot.respiratoryRate.map { String(format: "%.1f/min", $0) } ?? "—")
+                    MetricRow(title: "Wrist temp", value: snapshot.temperature.map { String(format: "%.2f°C", $0) } ?? "—")
+                    MetricRow(title: "Sleep", value: snapshot.sleepHours.map { String(format: "%.1fh", $0) } ?? "—")
+                    MetricRow(title: "Exercise", value: snapshot.activityMinutes.map { "\(Int($0)) min" } ?? "—")
                 }
 
                 if !healthReady {
                     Button("Connect Apple Health") {
-                        health.requestAuthorization { authorization in
-                            if case .success = authorization { healthReady = true }
-                        }
+                        connectHealth()
                     }
                     .buttonStyle(.borderedProminent)
                 } else {
-                    Label("Apple Health connected", systemImage: "checkmark.circle.fill")
+                    Button(isRefreshing ? "Reading Health…" : "Refresh & Sync") {
+                        refresh()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isRefreshing)
+                }
+
+                if let lastSync = sync.lastSync {
+                    Text("Last sync \(lastSync, style: .relative) ago")
                         .font(.caption2)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(.secondary)
                 }
 
-                Button(screening ? "Screening On" : "Start Screening") {
-                    screening = true
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.orange)
                 }
-                .buttonStyle(.bordered)
 
-                Text("Updated just now · View details on iPhone")
+                Text("Health pattern monitoring only · not a cancer diagnosis")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 8)
         }
+        .task {
+            sync.activate()
+            sync.onSnapshot = { incoming in
+                Task { @MainActor in
+                    snapshot = incoming
+                }
+            }
+        }
     }
-}
 
-private struct SignalRow: View {
-    let text: String
-    var body: some View {
-        HStack {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            Text(text)
-                .font(.caption2)
-            Spacer()
+    private func connectHealth() {
+        Task {
+            do {
+                try await health.requestAuthorization()
+                healthReady = true
+                refresh()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func refresh() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        errorMessage = nil
+        Task {
+            defer { isRefreshing = false }
+            do {
+                let fresh = try await health.fetchLatestSnapshot()
+                snapshot = fresh
+                result = ScreeningEngine.analyze([fresh, fresh])
+                sync.send(snapshot: fresh)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
 
-private struct SmallStat: View {
+private struct MetricRow: View {
     let title: String
     let value: String
+
     var body: some View {
-        VStack(spacing: 1) {
-            Text(title).font(.system(size: 8)).foregroundStyle(.secondary)
-            Text(value).font(.caption.bold())
+        HStack {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption.bold().monospacedDigit())
         }
-        .frame(maxWidth: .infinity)
     }
 }
