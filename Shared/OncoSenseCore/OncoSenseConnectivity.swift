@@ -8,6 +8,8 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     @Published private(set) var isReachable = false
     @Published private(set) var isActivated = false
     @Published private(set) var lastSync: Date?
+    @Published private(set) var lastReceived: Date?
+    @Published private(set) var pendingTransfers = 0
 
     var onSnapshot: ((HealthSnapshot) -> Void)?
 
@@ -28,21 +30,30 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
               let data = try? JSONEncoder().encode(snapshot) else { return }
 
         let payload: [String: Any] = ["snapshot": data]
-        do {
-            try session.updateApplicationContext(payload)
-        } catch {
-            // A queued transfer below keeps the data durable when context replacement fails.
-        }
+        try? session.updateApplicationContext(payload)
         session.transferUserInfo(payload)
-        lastSync = .now
+        publishState(session)
     }
 
-    private func receive(_ userInfo: [String: Any]) {
+    private func receive(_ userInfo: [String: Any], session: WCSession) {
         guard let data = userInfo["snapshot"] as? Data,
               let snapshot = try? JSONDecoder().decode(HealthSnapshot.self, from: data) else { return }
         DispatchQueue.main.async {
             self.lastSync = .now
+            self.lastReceived = .now
+            self.pendingTransfers = session.outstandingUserInfoTransfers.count
             self.onSnapshot?(snapshot)
+        }
+    }
+
+    private func publishState(_ session: WCSession) {
+        DispatchQueue.main.async {
+            self.isActivated = session.activationState == .activated
+            self.isReachable = session.isReachable
+            self.pendingTransfers = session.outstandingUserInfoTransfers.count
+            if session.activationState == .activated {
+                self.lastSync = .now
+            }
         }
     }
 
@@ -50,21 +61,20 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         DispatchQueue.main.async {
             self.isActivated = activationState == .activated
             self.isReachable = session.isReachable
+            self.pendingTransfers = session.outstandingUserInfoTransfers.count
         }
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
-        DispatchQueue.main.async {
-            self.isReachable = session.isReachable
-        }
+        publishState(session)
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
-        receive(applicationContext)
+        receive(applicationContext, session: session)
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
-        receive(userInfo)
+        receive(userInfo, session: session)
     }
 
 #if os(iOS)
