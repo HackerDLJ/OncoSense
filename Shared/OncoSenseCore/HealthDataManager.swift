@@ -10,9 +10,13 @@ final class HealthDataManager: ObservableObject {
         var types = Set<HKObjectType>()
         let quantityIDs: [HKQuantityTypeIdentifier] = [
             .restingHeartRate,
+            .heartRate,
             .heartRateVariabilitySDNN,
             .respiratoryRate,
             .appleExerciseTime,
+            .stepCount,
+            .activeEnergyBurned,
+            .bodyMass,
             .appleSleepingWristTemperature
         ]
         for id in quantityIDs {
@@ -34,22 +38,30 @@ final class HealthDataManager: ObservableObject {
     }
 
     func fetchLatestSnapshot() async throws -> HealthSnapshot {
-        async let heart = latest(.restingHeartRate, unit: .count().unitDivided(by: .minute()))
+        async let resting = latest(.restingHeartRate, unit: .count().unitDivided(by: .minute()))
+        async let heart = latest(.heartRate, unit: .count().unitDivided(by: .minute()))
         async let hrv = latest(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli))
         async let respiratory = latest(.respiratoryRate, unit: .count().unitDivided(by: .minute()))
         async let temperature = latest(.appleSleepingWristTemperature, unit: .degreeCelsius())
+        async let weight = latest(.bodyMass, unit: .gramUnit(with: .kilo))
         async let activity = total(.appleExerciseTime, unit: .minute(), since: Date().addingTimeInterval(-86400))
+        async let steps = total(.stepCount, unit: .count(), since: Date().addingTimeInterval(-86400))
+        async let energy = total(.activeEnergyBurned, unit: .kilocalorie(), since: Date().addingTimeInterval(-86400))
         async let sleep = sleepHours(since: Date().addingTimeInterval(-86400))
 
         return HealthSnapshot(
             timestamp: .now,
             source: HealthSnapshotSource.healthKit.rawValue,
-            restingHeartRate: try await heart,
+            restingHeartRate: try await resting,
+            heartRate: try await heart,
             hrv: try await hrv,
             respiratoryRate: try await respiratory,
             temperature: try await temperature,
             sleepHours: try await sleep,
-            activityMinutes: try await activity
+            activityMinutes: try await activity,
+            steps: try await steps,
+            activeEnergy: try await energy,
+            weightKg: try await weight
         )
     }
 
