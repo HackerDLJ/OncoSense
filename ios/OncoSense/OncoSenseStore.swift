@@ -3,38 +3,84 @@ import Combine
 
 @MainActor
 final class OncoSenseStore: ObservableObject {
-    @Published private(set) var result: ScreeningResult = .demo
+    @Published private(set) var result: ScreeningResult?
     @Published private(set) var snapshots: [HealthSnapshot] = []
-    @Published var isMonitoring = true
+    @Published private(set) var lastSnapshot: HealthSnapshot?
+    @Published private(set) var isHealthConnected = false
+    @Published private(set) var isRefreshing = false
+    @Published private(set) var errorMessage: String?
 
-    private let key = "oncosense.snapshots.v2"
+    let health = HealthDataManager()
+    let sync = OncoSenseConnectivity.shared
+
+    private let key = "oncosense.snapshots.v3"
 
     init() {
         load()
+        sync.onSnapshot = { [weak self] snapshot in
+            Task { @MainActor in
+                self?.ingest(snapshot)
+            }
+        }
+        sync.activate()
+    }
+
+    func connectHealth() {
+        Task {
+            do {
+                try await health.requestAuthorization()
+                isHealthConnected = true
+                errorMessage = nil
+                await refresh()
+            } catch {
+                isHealthConnected = false
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        do {
+            let snapshot = try await health.fetchLatestSnapshot()
+            isHealthConnected = true
+            ingest(snapshot)
+            sync.send(snapshot: snapshot)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func ingest(_ snapshot: HealthSnapshot) {
+        guard !snapshots.contains(where: { $0.id == snapshot.id }) else { return }
         snapshots.append(snapshot)
-        snapshots = Array(snapshots.sorted { $0.timestamp > $1.timestamp }.prefix(500))
-        let baseline = snapshots.last
-        result = ScreeningEngine.analyze(snapshots, baseline: baseline)
+        snapshots.sort { $0.timestamp > $1.timestamp }
+        snapshots = Array(snapshots.prefix(500))
+        lastSnapshot = snapshots.first
+        result = ScreeningEngine.analyze(snapshots)
         save()
     }
 
-    func runDemoAnalysis() {
-        let baseline = HealthSnapshot(timestamp: .now.addingTimeInterval(-86400), restingHeartRate: 62, hrv: 58, respiratoryRate: 15, temperature: 36.5, sleepHours: 7.5, activityMinutes: 35)
-        let current = HealthSnapshot(timestamp: .now, restingHeartRate: 62, hrv: 58, respiratoryRate: 15, temperature: 36.5, sleepHours: 7.5, activityMinutes: 35)
-        snapshots = [current, baseline]
-        result = ScreeningEngine.analyze(snapshots, baseline: baseline)
-        save()
+    var watchStatusText: String {
+        if sync.isReachable { return "Watch connected" }
+        if sync.isActivated { return "Watch available · waiting for connection" }
+        return "Watch not connected"
     }
 
     private func save() {
-        if let data = try? JSONEncoder().encode(snapshots) { UserDefaults.standard.set(data, forKey: key) }
+        if let data = try? JSONEncoder().encode(snapshots) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: key), let values = try? JSONDecoder().decode([HealthSnapshot].self, from: data) else { return }
-        snapshots = values
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let values = try? JSONDecoder().decode([HealthSnapshot].self, from: data) else { return }
+        snapshots = values.sorted { $0.timestamp > $1.timestamp }
+        lastSnapshot = snapshots.first
+        result = ScreeningEngine.analyze(snapshots)
     }
 }
