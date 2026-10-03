@@ -31,7 +31,7 @@ The core product statement is:
 ```text
 First launch
     ↓
-Guided setup
+Swipeable guided walkthrough
     ↓
 HealthKit permissions
     ↓
@@ -52,6 +52,33 @@ Care check-in + communication support
 
 The core idea is **personalized change tracking**. OncoSense compares a person's recent measurements with their own history rather than turning a single population threshold into a diagnosis.
 
+## iPhone UX flows
+
+### First-run walkthrough
+
+The first launch uses a four-page swipeable walkthrough before health permissions are requested. It explains:
+
+1. personal baseline;
+2. real HealthKit signals;
+3. the iPhone + Apple Watch relationship;
+4. context and the product's non-diagnostic scope.
+
+The user can swipe between pages or use Continue/Back controls. The final page starts HealthKit authorization and shows a progress state while setup is running. If authorization fails, the walkthrough remains available so the user can retry instead of being pushed into a broken or half-configured home screen.
+
+### What to do next
+
+The Overview screen has actionable next steps rather than decorative rows:
+
+- **Check Watch connection** opens the live WatchConnectivity status screen.
+- **Add today's context** switches directly to the Care tab.
+- **Learn how to read your data** opens the Learn sheet with a clear Done action.
+
+These actions are wired to real navigation state so tapping a row does not silently do nothing.
+
+### Care entry
+
+Care check-ins support fatigue, appetite, pain, fever/hot feeling, and optional notes. Text entry includes an explicit keyboard Done action, interactive keyboard dismissal, automatic dismissal on submit, and automatic dismissal when saving a check-in. The note is cleared after a successful save.
+
 ## Current Apple experience
 
 ### 📱 iPhone companion
@@ -64,8 +91,9 @@ The core idea is **personalized change tracking**. OncoSense compares a person's
 - Longitudinal trend cards built from actual observations.
 - Apple Watch connection screen with reachability, session, queued-transfer, and last-sync state.
 - Local Care Check-in for fatigue, appetite, pain, fever, and free-text notes.
-- Keyboard-safe Care entry with an explicit Done action and automatic dismissal after saving.
+- Keyboard-safe Care entry with explicit Done and automatic dismissal after submit/save.
 - Learn screen that explains the product scope and what the signals do and do not mean.
+- Actionable Overview next steps connected to the Watch sheet, Care tab, and Learn sheet.
 - Adaptive SwiftUI materials and accessible hierarchy.
 
 ### ⌚ Apple Watch
