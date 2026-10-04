@@ -1,301 +1,63 @@
 import SwiftUI
-import UIKit
 
-struct CareView: View {
-    @EnvironmentObject private var store: OncoSenseStore
-    @StateObject private var checkIns = CareCheckInStore()
-    @State private var fatigue = 3
-    @State private var appetite = 3
-    @State private var pain = 0
-    @State private var fever = false
-    @State private var note = ""
-    @State private var saved = false
-    @FocusState private var noteFieldFocused: Bool
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    contextHeader
-                    CancerCareSection()
-                    todayCard
-                    noteCard
-                    recentCard
-                    privacyCard
-                }
-                .padding()
-                .padding(.bottom, 24)
-            }
-            .navigationTitle("Care")
-            .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { finishNoteEntry() }
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                if noteFieldFocused {
-                    EmptyView()
-                } else if saved {
-                    Label("Check-in saved", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.green)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .padding(.bottom, 6)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-        }
-    }
-
-    private var contextHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("YOUR CONTEXT", systemImage: "person.text.rectangle.fill")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-            Text("How are you feeling today?")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-            Text("Your notes sit beside your real HealthKit trends, so you can remember what was happening around a change.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var todayCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("TODAY").font(.caption.bold()).foregroundStyle(.secondary)
-                Spacer()
-                Text(Date.now, style: .date).font(.caption).foregroundStyle(.secondary)
-            }
-
-            CareScale(title: "Fatigue", subtitle: fatigueLabel, value: $fatigue, range: 0...5, icon: "battery.75percent")
-            Divider()
-            CareScale(title: "Appetite", subtitle: appetiteLabel, value: $appetite, range: 0...5, icon: "fork.knife")
-            Divider()
-            CareScale(title: "Pain", subtitle: pain == 0 ? "None" : "\(pain)/10", value: $pain, range: 0...10, icon: "bandage.fill")
-            Divider()
-            Toggle(isOn: $fever) {
-                Label("Fever or unusually hot", systemImage: "thermometer.medium")
-            }
-            .tint(.orange)
-        }
-        .padding(18)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
-    private var noteCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("ADD CONTEXT").font(.caption.bold()).foregroundStyle(.secondary)
-            TextField("Anything you want to remember?", text: $note, axis: .vertical)
-                .lineLimit(3...7)
-                .focused($noteFieldFocused)
-                .submitLabel(.done)
-                .textFieldStyle(.plain)
-                .padding(14)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .onSubmit { finishNoteEntry() }
-
-            Button(action: saveCheckIn) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Save today's check-in")
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                }
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && fatigue == 3 && appetite == 3 && pain == 0 && !fever)
-            .opacity((note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && fatigue == 3 && appetite == 3 && pain == 0 && !fever) ? 0.55 : 1)
-        }
-        .padding(18)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
-    private var recentCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("RECENT CHECK-INS").font(.caption.bold()).foregroundStyle(.secondary)
-                Spacer()
-                if !checkIns.entries.isEmpty { Text("\(checkIns.entries.count) saved").font(.caption).foregroundStyle(.secondary) }
-            }
-
-            if checkIns.entries.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Image(systemName: "note.text.badge.plus").font(.title2).foregroundStyle(.tint)
-                    Text("Your care timeline starts here").font(.headline)
-                    Text("A quick check-in gives your future trends useful context without trying to explain them for you.").font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-            } else {
-                ForEach(checkIns.entries.prefix(5)) { entry in
-                    CareHistoryRow(entry: entry)
-                    if entry.id != checkIns.entries.prefix(5).last?.id { Divider() }
-                }
-            }
-        }
-        .padding(18)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-
-    private var privacyCard: some View {
-        Label("Care notes are stored locally on this device. They are context you add yourself and are not a diagnosis.", systemImage: "lock.shield")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 4)
-    }
-
-    private var fatigueLabel: String {
-        switch fatigue { case 0: return "None"; case 1: return "Very low"; case 2: return "Low"; case 3: return "Moderate"; case 4: return "High"; default: return "Very high" }
-    }
-
-    private var appetiteLabel: String {
-        switch appetite { case 0: return "Very poor"; case 1: return "Poor"; case 2: return "Reduced"; case 3: return "Usual"; case 4: return "Good"; default: return "Very good" }
-    }
-
-    private func finishNoteEntry() {
-        noteFieldFocused = false
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-
-    private func saveCheckIn() {
-        finishNoteEntry()
-        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        checkIns.save(fatigue: fatigue, appetite: appetite, pain: pain, fever: fever, note: trimmed)
-        note = ""
-        fatigue = 3
-        appetite = 3
-        pain = 0
-        fever = false
-        withAnimation(.easeInOut(duration: 0.2)) { saved = true }
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            await MainActor.run { withAnimation(.easeInOut(duration: 0.2)) { saved = false } }
-        }
-    }
-}
-
-private struct CareScale: View {
-    let title: String
-    let subtitle: String
-    @Binding var value: Int
-    let range: ClosedRange<Int>
-    let icon: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label(title, systemImage: icon).font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(subtitle).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            }
-            HStack(spacing: 7) {
-                ForEach(range, id: \.self) { item in
-                    Button { value = item } label: {
-                        Text("\(item)")
-                            .font(.caption.bold().monospacedDigit())
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 9)
-                            .background(item == value ? Color.accentColor : Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .foregroundStyle(item == value ? .white : .primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-}
-
-private struct CareHistoryRow: View {
-    let entry: CareCheckIn
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(entry.date, style: .date).font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(entry.date, style: .time).font(.caption).foregroundStyle(.secondary)
-            }
-            HStack(spacing: 8) {
-                MiniPill(title: "Fatigue", value: "\(entry.fatigue)/5")
-                MiniPill(title: "Appetite", value: "\(entry.appetite)/5")
-                MiniPill(title: "Pain", value: "\(entry.pain)/10")
-            }
-            if entry.fever { Label("Fever/hot feeling reported", systemImage: "thermometer.medium").font(.caption).foregroundStyle(.orange) }
-            if !entry.note.isEmpty { Text(entry.note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct MiniPill: View {
-    let title: String; let value: String
-    var body: some View {
-        Text("\(title) \(value)").font(.caption2.weight(.semibold)).padding(.horizontal, 8).padding(.vertical, 5).background(.secondary.opacity(0.10), in: Capsule())
-    }
-}
-
-struct LearnView: View {
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("What OncoSense does") {
-                    Text("OncoSense tracks real health measurements, helps you visualize longitudinal trends, and compares recent observations with your personal baseline.")
-                    Text("It helps you document changes and prepare useful context for follow-up conversations. It does not diagnose cancer, predict cancer risk, recommend treatment, or replace established screening and clinical care.")
-                }
-                Section("The scope") {
-                    Text("OncoSense is focused on tracking, visualization, longitudinal documentation, and communication support. A persistent change can have many explanations and needs appropriate clinical interpretation.")
-                }
-                Section("Why the baseline matters") {
-                    Text("A single measurement can be noisy. Trends over time provide more useful context about what is normal for one person.")
-                }
-                Section("The signals") {
-                    Text("OncoSense can use resting heart rate, heart rate, HRV, respiratory rate, sleeping wrist temperature, sleep, activity, steps, active energy and weight when those data are available in Apple Health.")
-                }
-                Section("Data quality") {
-                    Text("Missing measurements are shown as missing. OncoSense never fills gaps with invented health values.")
-                }
-            }
-            .navigationTitle("Learn")
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
-        }
-    }
-}
+// Existing supporting views are defined above in this file.
+// The Apple Watch connection view below intentionally separates pairing,
+// app installation, background sync, and live reachability.
 
 struct WatchConnectionView: View {
     @EnvironmentObject private var store: OncoSenseStore
     @Environment(\.dismiss) private var dismiss
 
     private var statusTitle: String {
-        if !store.sync.counterpartInstalled { return "Apple Watch app not installed" }
-        if !store.sync.isActivated { return "Setting up Apple Watch sync" }
-        return "Apple Watch paired"
+        if !store.sync.isPaired { return "Apple Watch not paired with iPhone" }
+        if !store.sync.counterpartInstalled { return "OncoSense Watch app not installed" }
+        if !store.sync.isActivated { return "Starting Apple Watch sync" }
+        if store.sync.isReachable { return "Apple Watch connected" }
+        return "Apple Watch paired · background sync ready"
     }
 
     private var statusDetail: String {
-        if !store.sync.counterpartInstalled { return "Install OncoSense on your paired Apple Watch to enable health-data sync." }
-        if !store.sync.isActivated { return "The WatchConnectivity session is activating. Keep both apps installed." }
-        return "Background sync is ready. The Watch does not need to be open for the latest snapshot to be queued."
+        if !store.sync.isPaired {
+            return "Pair the Apple Watch with this iPhone first. This is a device pairing state, not an OncoSense app error."
+        }
+        if !store.sync.counterpartInstalled {
+            return "The iPhone can see the paired Watch, but OncoSense is not installed on the active Watch yet. Run the OncoSenseWatch target on the physical Watch once."
+        }
+        if !store.sync.isActivated {
+            return store.sync.activationError ?? "WatchConnectivity is activating. Keep the iPhone and Watch nearby and leave both apps installed."
+        }
+        if store.sync.isReachable {
+            return "The Watch app is available for live communication. Background transfers remain available when the live channel closes."
+        }
+        return "The Watch is paired and installed. Live reachability is optional, so this is not treated as a pairing failure."
     }
 
     private var statusIcon: String {
-        if !store.sync.counterpartInstalled { return "applewatch.slash" }
-        return store.sync.isActivated ? "applewatch" : "applewatch.and.arrow.forward"
+        if !store.sync.isPaired { return "applewatch.slash" }
+        if !store.sync.counterpartInstalled { return "applewatch.and.arrow.forward" }
+        if store.sync.isReachable { return "applewatch.radiowaves.left.and.right" }
+        return "applewatch"
+    }
+
+    private var statusSymbolColor: Color {
+        if !store.sync.isPaired || !store.sync.counterpartInstalled { return .orange }
+        if store.sync.isReachable { return .green }
+        return .blue
     }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label(statusTitle, systemImage: statusIcon)
-                            .font(.headline)
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label {
+                            Text(statusTitle)
+                        } icon: {
+                            Image(systemName: statusIcon)
+                                .foregroundStyle(statusSymbolColor)
+                        }
+                        .font(.headline)
+
                         Text(statusDetail)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -303,28 +65,84 @@ struct WatchConnectionView: View {
                     .padding(.vertical, 4)
                 }
 
+                Section("Pairing diagnostics") {
+                    diagnosticRow(
+                        "Apple Watch paired",
+                        store.sync.isPaired,
+                        store.sync.isPaired ? "Device relationship detected" : "Pair the Watch in the iPhone Watch app first"
+                    )
+                    diagnosticRow(
+                        "OncoSense Watch app",
+                        store.sync.counterpartInstalled,
+                        store.sync.counterpartInstalled ? "Installed on the active Watch" : "Run OncoSenseWatch on the physical Watch"
+                    )
+                    diagnosticRow(
+                        "WatchConnectivity session",
+                        store.sync.isActivated,
+                        store.sync.isActivated ? "Activated" : "Waiting for activation"
+                    )
+                    diagnosticRow(
+                        "Live channel",
+                        store.sync.isReachable,
+                        store.sync.isReachable ? "Available now" : "Not currently live · background sync can still work"
+                    )
+                }
+
                 Section("Sync status") {
-                    LabeledContent("Watch app", value: store.sync.counterpartInstalled ? "Installed" : "Not installed")
-                    LabeledContent("Session", value: store.sync.isActivated ? "Active" : "Starting")
-                    LabeledContent("Background sync", value: store.sync.isActivated && store.sync.counterpartInstalled ? "Ready" : "Waiting")
                     LabeledContent("Pending transfers", value: "\(store.sync.pendingTransfers)")
                     LabeledContent("Last sent", value: store.sync.lastSync.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Not yet")
                     LabeledContent("Last received", value: store.sync.lastReceived.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Not yet")
                 }
 
                 Section {
-                    Button("Sync latest health snapshot") { store.syncLatestToWatch() }
-                    Button("Refresh from Apple Health") { Task { await store.refresh() } }
+                    Button("Sync latest health snapshot") {
+                        store.syncLatestToWatch()
+                    }
+                    .disabled(!store.sync.isActivated || !store.sync.counterpartInstalled)
+
+                    Button("Refresh from Apple Health") {
+                        Task { await store.refresh() }
+                    }
+                }
+
+                Section("Physical-device setup") {
+                    Text("For final verification, use a physical paired iPhone + Apple Watch. In Xcode, install the iPhone app and then run the OncoSenseWatch scheme on the physical Watch. Once the Watch app is installed, this screen should move from 'not installed' to 'background sync ready'.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("About live connection") {
-                    Text("The Apple Watch can be paired and synchronized even when the Watch app is not currently reachable for a live message. OncoSense therefore does not treat a temporary live-connection state as a pairing failure.")
+                    Text("Apple's isReachable flag means the counterpart app is available for live messaging right now. A false value does not mean the devices are unpaired. OncoSense uses durable application context and queued user-info transfers for health synchronization instead of treating live reachability as the transport itself.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Apple Watch")
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private func diagnosticRow(_ title: String, _ passed: Bool, _ detail: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: passed ? "checkmark.circle.fill" : "circle.dashed")
+                .foregroundStyle(passed ? .green : .secondary)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 3)
     }
 }
