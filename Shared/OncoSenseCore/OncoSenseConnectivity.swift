@@ -223,12 +223,6 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         publishState(session)
     }
 
-    #if os(iOS)
-    func sessionCompanionAppInstalledDidChange(_ session: WCSession) {
-        publishState(session)
-    }
-    #endif
-
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         handle(applicationContext, session: session)
     }
