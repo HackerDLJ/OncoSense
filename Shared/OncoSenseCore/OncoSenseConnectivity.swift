@@ -38,7 +38,11 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         }
     }
 
-    #if os(watchOS)
+    // Keep the request callback available to the shared target on every platform.
+    // The callback is only populated/used by the watch app, but exposing the
+    // property unconditionally prevents an accidental cross-SDK build from
+    // turning the SwiftUI EnvironmentObject assignment into a dynamic-member
+    // Binding error.
     var onSnapshotRequest: (() -> Void)? {
         get { snapshotRequestHandler }
         set {
@@ -50,7 +54,6 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
             }
         }
     }
-    #endif
 
     private let session: WCSession? = WCSession.isSupported() ? WCSession.default : nil
     private var pendingSnapshot: HealthSnapshot?
@@ -99,6 +102,7 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
             ])
             DispatchQueue.main.async {
                 self.lastSync = .now
+                self.activationError = nil
             }
         } catch {
             DispatchQueue.main.async {
@@ -154,15 +158,13 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     }
 
     private func handle(_ payload: [String: Any], session: WCSession) {
-        if let command = payload["command"] as? String {
+        if let command = payload["command"] as? String, command == "requestSnapshot" {
             #if os(watchOS)
-            if command == "requestSnapshot" {
-                DispatchQueue.main.async {
-                    if let handler = self.snapshotRequestHandler {
-                        handler()
-                    } else {
-                        self.pendingSnapshotRequest = true
-                    }
+            DispatchQueue.main.async {
+                if let handler = self.snapshotRequestHandler {
+                    handler()
+                } else {
+                    self.pendingSnapshotRequest = true
                 }
             }
             #endif
