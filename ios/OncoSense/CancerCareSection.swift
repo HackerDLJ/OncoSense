@@ -238,7 +238,7 @@ struct CancerCareSection: View {
             withAnimation(.easeInOut(duration: 0.15)) { plan.toggleSymptom(title) }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: selected ? "checkmark.circle.fill" : icon).foregroundStyle(selected ? .white : .tint)
+                Image(systemName: selected ? "checkmark.circle.fill" : icon).foregroundStyle(selected ? .white : Color.accentColor)
                 Text(title).font(.caption.weight(.semibold)).foregroundStyle(selected ? .white : .primary).multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
             }
