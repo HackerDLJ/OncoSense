@@ -105,12 +105,14 @@ final class OncoSenseStore: ObservableObject {
     }
 
     var watchStatusText: String {
-        if sync.counterpartInstalled {
-            if sync.isReachable { return "Apple Watch connected now" }
-            if sync.isActivated { return "Apple Watch paired · background sync ready" }
-            return "Apple Watch installed · connecting"
+        guard sync.isActivated else {
+            return sync.isPaired ? "Apple Watch paired · connecting" : "Looking for a paired Apple Watch"
         }
-        return "Apple Watch app is not installed"
+        guard sync.counterpartInstalled else {
+            return sync.isPaired ? "Apple Watch paired · OncoSense Watch app not installed" : "No Apple Watch paired"
+        }
+        if sync.isReachable { return "Apple Watch connected now" }
+        return "Apple Watch paired · background sync ready"
     }
 
     var availableSignalCount: Int {
