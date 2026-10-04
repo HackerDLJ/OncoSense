@@ -7,7 +7,8 @@ import WatchConnectivity
 /// Health snapshots are state, not live chat. The latest snapshot uses
 /// `updateApplicationContext`, while explicit Watch requests use
 /// `transferUserInfo`. Neither path requires the counterpart app to be in the
-/// foreground. `sendMessage` is intentionally not used for health sync.
+/// foreground. `sendMessage` is retained only for compatibility with older
+/// installed builds and is never used by the current sync path.
 final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate {
     static let shared = OncoSenseConnectivity()
 
@@ -20,9 +21,35 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     @Published private(set) var pendingTransfers = 0
     @Published private(set) var activationError: String?
 
-    var onSnapshot: ((HealthSnapshot) -> Void)?
+    private var snapshotHandler: ((HealthSnapshot) -> Void)?
+    private var snapshotRequestHandler: (() -> Void)?
+    private var pendingReceivedSnapshot: HealthSnapshot?
+    private var pendingSnapshotRequest = false
+
+    var onSnapshot: ((HealthSnapshot) -> Void)? {
+        get { snapshotHandler }
+        set {
+            snapshotHandler = newValue
+            guard let newValue, let pendingReceivedSnapshot else { return }
+            self.pendingReceivedSnapshot = nil
+            DispatchQueue.main.async {
+                newValue(pendingReceivedSnapshot)
+            }
+        }
+    }
+
     #if os(watchOS)
-    var onSnapshotRequest: (() -> Void)?
+    var onSnapshotRequest: (() -> Void)? {
+        get { snapshotRequestHandler }
+        set {
+            snapshotRequestHandler = newValue
+            guard let newValue, pendingSnapshotRequest else { return }
+            pendingSnapshotRequest = false
+            DispatchQueue.main.async {
+                newValue()
+            }
+        }
+    }
     #endif
 
     private let session: WCSession? = WCSession.isSupported() ? WCSession.default : nil
@@ -33,8 +60,15 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         super.init()
     }
 
+    /// Safe to call repeatedly from app lifecycle events.
     func activate() {
-        guard let session else { return }
+        guard let session else {
+            DispatchQueue.main.async {
+                self.activationError = "WatchConnectivity is unavailable on this device."
+            }
+            return
+        }
+
         session.delegate = self
 
         if session.activationState != .activated && !hasRequestedActivation {
@@ -50,6 +84,7 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
 
     func send(snapshot: HealthSnapshot) {
         pendingSnapshot = snapshot
+
         guard let session,
               session.activationState == .activated,
               let data = try? JSONEncoder().encode(snapshot) else {
@@ -58,8 +93,8 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         }
 
         do {
-            // Latest-state transport. The system can deliver this later when
-            // the counterpart becomes available.
+            // Latest-state transport. The system keeps the newest context and
+            // can deliver it when the counterpart becomes available.
             try session.updateApplicationContext([
                 "kind": "healthSnapshot",
                 "snapshot": data
@@ -68,6 +103,9 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
                 self.lastSync = .now
             }
         } catch {
+            DispatchQueue.main.async {
+                self.activationError = "Health snapshot sync failed: \(error.localizedDescription)"
+            }
             print("[OncoSenseConnectivity] application context update failed: \(error.localizedDescription)")
         }
         publishState(session)
@@ -101,12 +139,21 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
 
     private func receiveSnapshot(_ userInfo: [String: Any], session: WCSession) {
         guard let data = userInfo["snapshot"] as? Data,
-              let snapshot = try? JSONDecoder().decode(HealthSnapshot.self, from: data) else { return }
+              let snapshot = try? JSONDecoder().decode(HealthSnapshot.self, from: data) else {
+            return
+        }
 
         DispatchQueue.main.async {
             self.lastReceived = .now
             self.pendingTransfers = session.outstandingUserInfoTransfers.count
-            self.onSnapshot?(snapshot)
+
+            if let handler = self.snapshotHandler {
+                handler(snapshot)
+            } else {
+                // Do not lose a Watch snapshot simply because the SwiftUI view
+                // has not attached its callback yet.
+                self.pendingReceivedSnapshot = snapshot
+            }
         }
     }
 
@@ -115,7 +162,11 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
             #if os(watchOS)
             if command == "requestSnapshot" {
                 DispatchQueue.main.async {
-                    self.onSnapshotRequest?()
+                    if let handler = self.snapshotRequestHandler {
+                        handler()
+                    } else {
+                        self.pendingSnapshotRequest = true
+                    }
                 }
             }
             #endif
@@ -137,11 +188,13 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
 
         #if os(iOS)
         // Apple documents these device-state properties as valid only after
-        // the WCSession is activated. Do not read them during activation.
+        // WCSession activation completes. Never read them during activation.
         paired = active ? session.isPaired : false
         installed = active ? session.isWatchAppInstalled : false
         #else
-        paired = active
+        // On watchOS, the companion-install state is likewise meaningful only
+        // after successful activation.
+        paired = active ? session.isCompanionAppInstalled : false
         installed = active ? session.isCompanionAppInstalled : false
         #endif
 
@@ -199,12 +252,12 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        // Compatibility with an older installed build. New health sync never
-        // depends on live messaging.
+        // Compatibility with older installed builds only. New health sync
+        // never depends on live messaging or its reachability timeout.
         handle(message, session: session)
     }
 
-#if os(iOS)
+    #if os(iOS)
     func sessionDidBecomeInactive(_ session: WCSession) {
         publishState(session)
     }
@@ -213,5 +266,5 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
         hasRequestedActivation = false
         session.activate()
     }
-#endif
+    #endif
 }
