@@ -6,6 +6,9 @@ options:
     watchOS: "10.0"
   createIntermediateGroups: true
   developmentLanguage: en
+  # Xcode 26+ treats the modern watchOS app as a Foundation-style embedded
+  # product. XcodeGen still generates the legacy Watch/ destination by
+  # default, so move the embedded watch product into PlugIns/ after generation.
   postGenCommand: >-
     sed -i '' -e 's|dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";|dstPath = "";|'
     -e 's|dstSubfolderSpec = 16;|dstSubfolderSpec = 13;|'
@@ -13,8 +16,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    CURRENT_PROJECT_VERSION: 209
-    MARKETING_VERSION: 2.0.1
+    CURRENT_PROJECT_VERSION: 210
+    MARKETING_VERSION: 2.0.2
     CODE_SIGN_STYLE: Automatic
     GENERATE_INFOPLIST_FILE: YES
 
@@ -26,9 +29,10 @@ targets:
       - path: ios/OncoSense
       - path: Shared/OncoSenseCore
     dependencies:
+      # The watch product must be an embedded dependency of the iPhone app.
+      # This is what lets Xcode package the watchOS product with the iOS build.
       - target: OncoSenseWatch
         embed: true
-        destinationFilters: [watchOS]
     info:
       path: ios/OncoSense/Info.plist
     settings:
@@ -50,6 +54,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hackerdlj.oncosense.watchkitapp
+        PRODUCT_NAME: OncoSenseWatch
         INFOPLIST_KEY_CFBundleDisplayName: OncoSense
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.hackerdlj.oncosense
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApplication: false
@@ -61,7 +66,11 @@ schemes:
   OncoSense:
     build:
       targets:
+        # Build both products when the iPhone scheme is run. This prevents the
+        # physical iPhone install from being a phone-only build and makes the
+        # paired Watch product part of the same Xcode run workflow.
         OncoSense: all
+        OncoSenseWatch: all
     run:
       config: Debug
       executable: OncoSense
