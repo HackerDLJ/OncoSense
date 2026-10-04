@@ -39,6 +39,9 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
 
         if session.activationState != .activated && !hasRequestedActivation {
             hasRequestedActivation = true
+            DispatchQueue.main.async {
+                self.activationError = nil
+            }
             session.activate()
         }
 
@@ -88,6 +91,7 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     }
 
     private func counterpartIsInstalled(on session: WCSession) -> Bool {
+        guard session.activationState == .activated else { return false }
         #if os(iOS)
         return session.isWatchAppInstalled
         #else
@@ -127,17 +131,29 @@ final class OncoSenseConnectivity: NSObject, ObservableObject, WCSessionDelegate
     private func publishState(_ session: WCSession?) {
         guard let session else { return }
 
+        let active = session.activationState == .activated
+        let paired: Bool
+        let installed: Bool
+
+        #if os(iOS)
+        // Apple documents these device-state properties as valid only after
+        // the WCSession is activated. Do not read them during activation.
+        paired = active ? session.isPaired : false
+        installed = active ? session.isWatchAppInstalled : false
+        #else
+        paired = active
+        installed = active ? session.isCompanionAppInstalled : false
+        #endif
+
+        let reachable = active && session.isReachable
+        let transfers = active ? session.outstandingUserInfoTransfers.count : 0
+
         DispatchQueue.main.async {
-            self.isActivated = session.activationState == .activated
-            self.isReachable = session.activationState == .activated && session.isReachable
-            #if os(iOS)
-            self.counterpartInstalled = session.isWatchAppInstalled
-            self.isPaired = session.isPaired
-            #else
-            self.counterpartInstalled = session.isCompanionAppInstalled
-            self.isPaired = session.isCompanionAppInstalled || session.activationState == .activated
-            #endif
-            self.pendingTransfers = session.outstandingUserInfoTransfers.count
+            self.isActivated = active
+            self.isReachable = reachable
+            self.isPaired = paired
+            self.counterpartInstalled = installed
+            self.pendingTransfers = transfers
         }
     }
 
