@@ -244,6 +244,37 @@ context         queued userInfo
 
 OncoSense uses `updateApplicationContext` for the latest state and `transferUserInfo` for queued delivery. The iPhone UI exposes reachability and outstanding transfer state so synchronization is visible instead of being represented by a decorative icon.
 
+**Important:** `isReachable` means an immediate WatchConnectivity communication path is available. It is **not** the same thing as “paired,” and it is not required for queued `transferUserInfo` or application-context synchronization. The app therefore keeps these states separate instead of showing a false “connected” status.
+
+### Physical-device pairing checklist
+
+For a real iPhone + Apple Watch test, do this in order:
+
+1. Pair the Apple Watch with the iPhone in the normal Apple Watch setup flow.
+2. Turn **Bluetooth and Wi-Fi on** on both devices.
+3. Keep the devices near each other and unlocked during the first installation.
+4. In Xcode, install/run the **OncoSenseWatch** target on the physical Apple Watch at least once.
+5. Install/run the **OncoSense** iPhone target on the paired iPhone.
+6. Launch both apps once. Allow HealthKit permissions when prompted.
+7. Return to OncoSense's Watch connection screen and wait for the WatchConnectivity session to activate.
+8. Test **Refresh & Sync**. A queued request can work without immediate reachability, so a temporary `Not reachable` state should not be treated as a data-loss error.
+
+If Xcode reports `RemotePairingError` / `Timed out while attempting to establish tunnel`, that is a **physical-device/Xcode transport problem**, not a SwiftUI connection-state problem. Reconnect the iPhone to the Mac with a cable, make sure the iPhone and Watch are both reachable, keep Wi-Fi enabled, unlock the devices, and re-pair the development device in Xcode before testing WatchConnectivity again.
+
+If the Watch screen says **“counterpart app not installed”**, install the iPhone companion and Watch target on the same paired device set. The code cannot programmatically install the missing companion app.
+
+## CI and build verification
+
+The repository uses GitHub Actions to verify both sides of the product:
+
+- backend Python compilation, tests, and application import;
+- watchOS Simulator build;
+- iOS Simulator build.
+
+The iOS CI build intentionally does **not** force an iPhone Simulator SDK onto the Watch target. Doing that makes Xcode compile the watch target as an iOS target and produces misleading errors such as unavailable WatchConnectivity APIs and incorrect `TARGETED_DEVICE_FAMILY` warnings. The build uses the destination to let each target retain its own platform SDK.
+
+The generated Xcode project is disposable. Run `xcodegen generate` after pulling changes instead of treating `OncoSense.xcodeproj` as the source of truth.
+
 ## Why OncoSense is not a cancer-detection button
 
 Cancer screening, diagnosis, early diagnosis, and longitudinal health monitoring are different activities. Screening aims to identify findings suggestive of a specific cancer or pre-cancer in an appropriate target population; an abnormal screening result generally requires further diagnostic evaluation. A wearable measurement is not by itself a cancer diagnosis.
