@@ -36,6 +36,6 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
       - name: Build watchOS simulator target
-        run: xcodebuild -project OncoSense.xcodeproj -scheme OncoSenseWatch -sdk watchsimulator -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project OncoSense.xcodeproj -scheme OncoSenseWatch -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO build
       - name: Build iOS simulator target
-        run: xcodebuild -project OncoSense.xcodeproj -scheme OncoSense -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project OncoSense.xcodeproj -scheme OncoSense -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
