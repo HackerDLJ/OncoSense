@@ -170,14 +170,22 @@ struct ContentView: View {
     }
 
     private func connectHealth() {
+        guard !isRefreshing else { return }
         isRefreshing = true
         errorMessage = nil
+
         Task {
             do {
                 try await health.requestAuthorization()
                 healthReady = true
                 UserDefaults.standard.set(true, forKey: "oncosense.watch.setup.v3")
                 showSetup = false
+
+                // Release the setup lock before entering the shared refresh
+                // path. Previously connectHealth() set isRefreshing = true and
+                // then called refreshAndSend(), whose guard immediately returned,
+                // so the first successful authorization never synced data.
+                isRefreshing = false
                 await refreshAndSend()
             } catch {
                 errorMessage = error.localizedDescription
